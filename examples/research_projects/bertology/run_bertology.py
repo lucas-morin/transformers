@@ -12,12 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" Bertology: this script shows how you can explore the internals of the models in the library to:
-    - compute the entropy of the head attentions
-    - compute the importance of each head
-    - prune (remove) the low importance head.
-    Some parts of this script are adapted from the code of Michel et al. (http://arxiv.org/abs/1905.10650)
-    which is available at https://github.com/pmichel31415/are-16-heads-really-better-than-1
+"""Bertology: this script shows how you can explore the internals of the models in the library to:
+- compute the entropy of the head attentions
+- compute the importance of each head
+- prune (remove) the low importance head.
+Some parts of this script are adapted from the code of Michel et al. (http://arxiv.org/abs/1905.10650)
+which is available at https://github.com/pmichel31415/are-16-heads-really-better-than-1
 """
 import argparse
 import logging
@@ -218,9 +218,9 @@ def prune_heads(args, model, eval_dataloader, head_mask):
     original_time = datetime.now() - before_time
 
     original_num_params = sum(p.numel() for p in model.parameters())
-    heads_to_prune = dict(
-        (layer, (1 - head_mask[layer].long()).nonzero().squeeze().tolist()) for layer in range(len(head_mask))
-    )
+    heads_to_prune = {
+        layer: (1 - head_mask[layer].long()).nonzero().squeeze().tolist() for layer in range(len(head_mask))
+    }
 
     assert sum(len(h) for h in heads_to_prune.values()) == (1 - head_mask.long()).sum().item()
     model.prune_heads(heads_to_prune)
@@ -338,8 +338,10 @@ def main():
         "--max_seq_length",
         default=128,
         type=int,
-        help="The maximum total input sequence length after WordPiece tokenization. \n"
-        "Sequences longer than this will be truncated, sequences shorter padded.",
+        help=(
+            "The maximum total input sequence length after WordPiece tokenization. \n"
+            "Sequences longer than this will be truncated, sequences shorter padded."
+        ),
     )
     parser.add_argument("--batch_size", default=1, type=int, help="Batch size.")
 

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2018 HuggingFace Inc..
+# Copyright 2019 HuggingFace Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,276 +12,269 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-isort:skip_file
-"""
+
 import os
-import pickle
+import sys
 import tempfile
 import unittest
-from typing import Callable, Optional
+import unittest.mock as mock
+from pathlib import Path
 
-import numpy as np
-
-# Ensure there are no circular imports when importing the parent class
-from transformers import PreTrainedTokenizerFast
+from huggingface_hub import HfFolder, delete_repo
+from huggingface_hub.file_download import http_get
+from requests.exceptions import HTTPError
 
 from transformers import (
-    BatchEncoding,
+    AlbertTokenizer,
+    AutoTokenizer,
     BertTokenizer,
     BertTokenizerFast,
-    PreTrainedTokenizer,
-    TensorType,
-    TokenSpan,
+    GPT2TokenizerFast,
     is_tokenizers_available,
 )
-from transformers.models.gpt2.tokenization_gpt2 import GPT2Tokenizer
-from transformers.testing_utils import CaptureStderr, require_flax, require_tf, require_tokenizers, require_torch, slow
+from transformers.testing_utils import TOKEN, USER, is_staging_test, require_tokenizers
+from transformers.tokenization_utils import Trie
+
+
+sys.path.append(str(Path(__file__).parent.parent / "utils"))
+
+from test_module.custom_tokenization import CustomTokenizer  # noqa E402
 
 
 if is_tokenizers_available():
-    from tokenizers import Tokenizer
-    from tokenizers.models import WordPiece
+    from test_module.custom_tokenization_fast import CustomTokenizerFast
 
 
-class TokenizerUtilsTest(unittest.TestCase):
-    def check_tokenizer_from_pretrained(self, tokenizer_class):
-        s3_models = list(tokenizer_class.max_model_input_sizes.keys())
-        for model_name in s3_models[:1]:
-            tokenizer = tokenizer_class.from_pretrained(model_name)
-            self.assertIsNotNone(tokenizer)
-            self.assertIsInstance(tokenizer, tokenizer_class)
-            self.assertIsInstance(tokenizer, PreTrainedTokenizer)
+class TokenizerUtilTester(unittest.TestCase):
+    def test_cached_files_are_used_when_internet_is_down(self):
+        # A mock response for an HTTP head request to emulate server down
+        response_mock = mock.Mock()
+        response_mock.status_code = 500
+        response_mock.headers = {}
+        response_mock.raise_for_status.side_effect = HTTPError
+        response_mock.json.return_value = {}
 
-            for special_tok in tokenizer.all_special_tokens:
-                self.assertIsInstance(special_tok, str)
-                special_tok_id = tokenizer.convert_tokens_to_ids(special_tok)
-                self.assertIsInstance(special_tok_id, int)
+        # Download this model to make sure it's in the cache.
+        _ = BertTokenizer.from_pretrained("hf-internal-testing/tiny-random-bert")
 
-    def assert_dump_and_restore(self, be_original: BatchEncoding, equal_op: Optional[Callable] = None):
-        batch_encoding_str = pickle.dumps(be_original)
-        self.assertIsNotNone(batch_encoding_str)
-
-        be_restored = pickle.loads(batch_encoding_str)
-
-        # Ensure is_fast is correctly restored
-        self.assertEqual(be_restored.is_fast, be_original.is_fast)
-
-        # Ensure encodings are potentially correctly restored
-        if be_original.is_fast:
-            self.assertIsNotNone(be_restored.encodings)
-        else:
-            self.assertIsNone(be_restored.encodings)
-
-        # Ensure the keys are the same
-        for original_v, restored_v in zip(be_original.values(), be_restored.values()):
-            if equal_op:
-                self.assertTrue(equal_op(restored_v, original_v))
-            else:
-                self.assertEqual(restored_v, original_v)
-
-    @slow
-    def test_pretrained_tokenizers(self):
-        self.check_tokenizer_from_pretrained(GPT2Tokenizer)
-
-    def test_tensor_type_from_str(self):
-        self.assertEqual(TensorType("tf"), TensorType.TENSORFLOW)
-        self.assertEqual(TensorType("pt"), TensorType.PYTORCH)
-        self.assertEqual(TensorType("np"), TensorType.NUMPY)
+        # Under the mock environment we get a 500 error when trying to reach the tokenizer.
+        with mock.patch("requests.Session.request", return_value=response_mock) as mock_head:
+            _ = BertTokenizer.from_pretrained("hf-internal-testing/tiny-random-bert")
+            # This check we did call the fake head request
+            mock_head.assert_called()
 
     @require_tokenizers
-    def test_batch_encoding_pickle(self):
-        import numpy as np
+    def test_cached_files_are_used_when_internet_is_down_missing_files(self):
+        # A mock response for an HTTP head request to emulate server down
+        response_mock = mock.Mock()
+        response_mock.status_code = 500
+        response_mock.headers = {}
+        response_mock.raise_for_status.side_effect = HTTPError
+        response_mock.json.return_value = {}
 
-        tokenizer_p = BertTokenizer.from_pretrained("bert-base-cased")
-        tokenizer_r = BertTokenizerFast.from_pretrained("bert-base-cased")
+        # Download this model to make sure it's in the cache.
+        _ = GPT2TokenizerFast.from_pretrained("gpt2")
 
-        # Python no tensor
-        with self.subTest("BatchEncoding (Python, return_tensors=None)"):
-            self.assert_dump_and_restore(tokenizer_p("Small example to encode"))
+        # Under the mock environment we get a 500 error when trying to reach the tokenizer.
+        with mock.patch("requests.Session.request", return_value=response_mock) as mock_head:
+            _ = GPT2TokenizerFast.from_pretrained("gpt2")
+            # This check we did call the fake head request
+            mock_head.assert_called()
 
-        with self.subTest("BatchEncoding (Python, return_tensors=NUMPY)"):
-            self.assert_dump_and_restore(
-                tokenizer_p("Small example to encode", return_tensors=TensorType.NUMPY), np.array_equal
+    def test_legacy_load_from_one_file(self):
+        # This test is for deprecated behavior and can be removed in v5
+        try:
+            tmp_file = tempfile.mktemp()
+            with open(tmp_file, "wb") as f:
+                http_get("https://huggingface.co/albert-base-v1/resolve/main/spiece.model", f)
+
+            _ = AlbertTokenizer.from_pretrained(tmp_file)
+        finally:
+            os.remove(tmp_file)
+
+        # Supporting this legacy load introduced a weird bug where the tokenizer would load local files if they are in
+        # the current folder and have the right name.
+        if os.path.isfile("tokenizer.json"):
+            # We skip the test if the user has a `tokenizer.json` in this folder to avoid deleting it.
+            return
+        try:
+            with open("tokenizer.json", "wb") as f:
+                http_get("https://huggingface.co/hf-internal-testing/tiny-random-bert/blob/main/tokenizer.json", f)
+            tokenizer = AutoTokenizer.from_pretrained("hf-internal-testing/tiny-random-gpt2")
+            # The tiny random BERT has a vocab size of 1024, tiny gpt2 as a vocab size of 1000
+            self.assertEqual(tokenizer.vocab_size, 1000)
+            # Tokenizer should depend on the remote checkpoint, not the local tokenizer.json file.
+
+        finally:
+            os.remove("tokenizer.json")
+
+    def test_legacy_load_from_url(self):
+        # This test is for deprecated behavior and can be removed in v5
+        _ = AlbertTokenizer.from_pretrained("https://huggingface.co/albert-base-v1/resolve/main/spiece.model")
+
+
+@is_staging_test
+class TokenizerPushToHubTester(unittest.TestCase):
+    vocab_tokens = ["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "bla", "blou"]
+
+    @classmethod
+    def setUpClass(cls):
+        cls._token = TOKEN
+        HfFolder.save_token(TOKEN)
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            delete_repo(token=cls._token, repo_id="test-tokenizer")
+        except HTTPError:
+            pass
+
+        try:
+            delete_repo(token=cls._token, repo_id="valid_org/test-tokenizer-org")
+        except HTTPError:
+            pass
+
+        try:
+            delete_repo(token=cls._token, repo_id="test-dynamic-tokenizer")
+        except HTTPError:
+            pass
+
+    def test_push_to_hub(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vocab_file = os.path.join(tmp_dir, "vocab.txt")
+            with open(vocab_file, "w", encoding="utf-8") as vocab_writer:
+                vocab_writer.write("".join([x + "\n" for x in self.vocab_tokens]))
+            tokenizer = BertTokenizer(vocab_file)
+
+        tokenizer.push_to_hub("test-tokenizer", use_auth_token=self._token)
+        new_tokenizer = BertTokenizer.from_pretrained(f"{USER}/test-tokenizer")
+        self.assertDictEqual(new_tokenizer.vocab, tokenizer.vocab)
+
+        # Reset repo
+        delete_repo(token=self._token, repo_id="test-tokenizer")
+
+        # Push to hub via save_pretrained
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tokenizer.save_pretrained(tmp_dir, repo_id="test-tokenizer", push_to_hub=True, use_auth_token=self._token)
+
+        new_tokenizer = BertTokenizer.from_pretrained(f"{USER}/test-tokenizer")
+        self.assertDictEqual(new_tokenizer.vocab, tokenizer.vocab)
+
+    def test_push_to_hub_in_organization(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vocab_file = os.path.join(tmp_dir, "vocab.txt")
+            with open(vocab_file, "w", encoding="utf-8") as vocab_writer:
+                vocab_writer.write("".join([x + "\n" for x in self.vocab_tokens]))
+            tokenizer = BertTokenizer(vocab_file)
+
+        tokenizer.push_to_hub("valid_org/test-tokenizer-org", use_auth_token=self._token)
+        new_tokenizer = BertTokenizer.from_pretrained("valid_org/test-tokenizer-org")
+        self.assertDictEqual(new_tokenizer.vocab, tokenizer.vocab)
+
+        # Reset repo
+        delete_repo(token=self._token, repo_id="valid_org/test-tokenizer-org")
+
+        # Push to hub via save_pretrained
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tokenizer.save_pretrained(
+                tmp_dir, repo_id="valid_org/test-tokenizer-org", push_to_hub=True, use_auth_token=self._token
             )
 
-        with self.subTest("BatchEncoding (Rust, return_tensors=None)"):
-            self.assert_dump_and_restore(tokenizer_r("Small example to encode"))
-
-        with self.subTest("BatchEncoding (Rust, return_tensors=NUMPY)"):
-            self.assert_dump_and_restore(
-                tokenizer_r("Small example to encode", return_tensors=TensorType.NUMPY), np.array_equal
-            )
-
-    @require_tf
-    @require_tokenizers
-    def test_batch_encoding_pickle_tf(self):
-        import tensorflow as tf
-
-        def tf_array_equals(t1, t2):
-            return tf.reduce_all(tf.equal(t1, t2))
-
-        tokenizer_p = BertTokenizer.from_pretrained("bert-base-cased")
-        tokenizer_r = BertTokenizerFast.from_pretrained("bert-base-cased")
-
-        with self.subTest("BatchEncoding (Python, return_tensors=TENSORFLOW)"):
-            self.assert_dump_and_restore(
-                tokenizer_p("Small example to encode", return_tensors=TensorType.TENSORFLOW), tf_array_equals
-            )
-
-        with self.subTest("BatchEncoding (Rust, return_tensors=TENSORFLOW)"):
-            self.assert_dump_and_restore(
-                tokenizer_r("Small example to encode", return_tensors=TensorType.TENSORFLOW), tf_array_equals
-            )
-
-    @require_torch
-    @require_tokenizers
-    def test_batch_encoding_pickle_pt(self):
-        import torch
-
-        tokenizer_p = BertTokenizer.from_pretrained("bert-base-cased")
-        tokenizer_r = BertTokenizerFast.from_pretrained("bert-base-cased")
-
-        with self.subTest("BatchEncoding (Python, return_tensors=PYTORCH)"):
-            self.assert_dump_and_restore(
-                tokenizer_p("Small example to encode", return_tensors=TensorType.PYTORCH), torch.equal
-            )
-
-        with self.subTest("BatchEncoding (Rust, return_tensors=PYTORCH)"):
-            self.assert_dump_and_restore(
-                tokenizer_r("Small example to encode", return_tensors=TensorType.PYTORCH), torch.equal
-            )
+        new_tokenizer = BertTokenizer.from_pretrained("valid_org/test-tokenizer-org")
+        self.assertDictEqual(new_tokenizer.vocab, tokenizer.vocab)
 
     @require_tokenizers
-    def test_batch_encoding_is_fast(self):
-        tokenizer_p = BertTokenizer.from_pretrained("bert-base-cased")
-        tokenizer_r = BertTokenizerFast.from_pretrained("bert-base-cased")
+    def test_push_to_hub_dynamic_tokenizer(self):
+        CustomTokenizer.register_for_auto_class()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vocab_file = os.path.join(tmp_dir, "vocab.txt")
+            with open(vocab_file, "w", encoding="utf-8") as vocab_writer:
+                vocab_writer.write("".join([x + "\n" for x in self.vocab_tokens]))
+            tokenizer = CustomTokenizer(vocab_file)
 
-        with self.subTest("Python Tokenizer"):
-            self.assertFalse(tokenizer_p("Small example to_encode").is_fast)
+        # No fast custom tokenizer
+        tokenizer.push_to_hub("test-dynamic-tokenizer", use_auth_token=self._token)
 
-        with self.subTest("Rust Tokenizer"):
-            self.assertTrue(tokenizer_r("Small example to_encode").is_fast)
+        tokenizer = AutoTokenizer.from_pretrained(f"{USER}/test-dynamic-tokenizer", trust_remote_code=True)
+        # Can't make an isinstance check because the new_model.config is from the CustomTokenizer class of a dynamic module
+        self.assertEqual(tokenizer.__class__.__name__, "CustomTokenizer")
 
-    @require_tokenizers
-    def test_batch_encoding_word_to_tokens(self):
-        tokenizer_r = BertTokenizerFast.from_pretrained("bert-base-cased")
-        encoded = tokenizer_r(["Test", "\xad", "test"], is_split_into_words=True)
+        # Fast and slow custom tokenizer
+        CustomTokenizerFast.register_for_auto_class()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            vocab_file = os.path.join(tmp_dir, "vocab.txt")
+            with open(vocab_file, "w", encoding="utf-8") as vocab_writer:
+                vocab_writer.write("".join([x + "\n" for x in self.vocab_tokens]))
 
-        self.assertEqual(encoded.word_to_tokens(0), TokenSpan(start=1, end=2))
-        self.assertEqual(encoded.word_to_tokens(1), None)
-        self.assertEqual(encoded.word_to_tokens(2), TokenSpan(start=2, end=3))
+            bert_tokenizer = BertTokenizerFast.from_pretrained(tmp_dir)
+            bert_tokenizer.save_pretrained(tmp_dir)
+            tokenizer = CustomTokenizerFast.from_pretrained(tmp_dir)
 
-    def test_batch_encoding_with_labels(self):
-        batch = BatchEncoding({"inputs": [[1, 2, 3], [4, 5, 6]], "labels": [0, 1]})
-        tensor_batch = batch.convert_to_tensors(tensor_type="np")
-        self.assertEqual(tensor_batch["inputs"].shape, (2, 3))
-        self.assertEqual(tensor_batch["labels"].shape, (2,))
-        # test converting the converted
-        with CaptureStderr() as cs:
-            tensor_batch = batch.convert_to_tensors(tensor_type="np")
-        self.assertFalse(len(cs.err), msg=f"should have no warning, but got {cs.err}")
+        tokenizer.push_to_hub("test-dynamic-tokenizer", use_auth_token=self._token)
 
-        batch = BatchEncoding({"inputs": [1, 2, 3], "labels": 0})
-        tensor_batch = batch.convert_to_tensors(tensor_type="np", prepend_batch_axis=True)
-        self.assertEqual(tensor_batch["inputs"].shape, (1, 3))
-        self.assertEqual(tensor_batch["labels"].shape, (1,))
+        tokenizer = AutoTokenizer.from_pretrained(f"{USER}/test-dynamic-tokenizer", trust_remote_code=True)
+        # Can't make an isinstance check because the new_model.config is from the FakeConfig class of a dynamic module
+        self.assertEqual(tokenizer.__class__.__name__, "CustomTokenizerFast")
+        tokenizer = AutoTokenizer.from_pretrained(
+            f"{USER}/test-dynamic-tokenizer", use_fast=False, trust_remote_code=True
+        )
+        # Can't make an isinstance check because the new_model.config is from the FakeConfig class of a dynamic module
+        self.assertEqual(tokenizer.__class__.__name__, "CustomTokenizer")
 
-    @require_torch
-    def test_batch_encoding_with_labels_pt(self):
-        batch = BatchEncoding({"inputs": [[1, 2, 3], [4, 5, 6]], "labels": [0, 1]})
-        tensor_batch = batch.convert_to_tensors(tensor_type="pt")
-        self.assertEqual(tensor_batch["inputs"].shape, (2, 3))
-        self.assertEqual(tensor_batch["labels"].shape, (2,))
-        # test converting the converted
-        with CaptureStderr() as cs:
-            tensor_batch = batch.convert_to_tensors(tensor_type="pt")
-        self.assertFalse(len(cs.err), msg=f"should have no warning, but got {cs.err}")
 
-        batch = BatchEncoding({"inputs": [1, 2, 3], "labels": 0})
-        tensor_batch = batch.convert_to_tensors(tensor_type="pt", prepend_batch_axis=True)
-        self.assertEqual(tensor_batch["inputs"].shape, (1, 3))
-        self.assertEqual(tensor_batch["labels"].shape, (1,))
+class TrieTest(unittest.TestCase):
+    def test_trie(self):
+        trie = Trie()
+        trie.add("Hello 友達")
+        self.assertEqual(trie.data, {"H": {"e": {"l": {"l": {"o": {" ": {"友": {"達": {"": 1}}}}}}}}})
+        trie.add("Hello")
+        trie.data
+        self.assertEqual(trie.data, {"H": {"e": {"l": {"l": {"o": {"": 1, " ": {"友": {"達": {"": 1}}}}}}}}})
 
-    @require_tf
-    def test_batch_encoding_with_labels_tf(self):
-        batch = BatchEncoding({"inputs": [[1, 2, 3], [4, 5, 6]], "labels": [0, 1]})
-        tensor_batch = batch.convert_to_tensors(tensor_type="tf")
-        self.assertEqual(tensor_batch["inputs"].shape, (2, 3))
-        self.assertEqual(tensor_batch["labels"].shape, (2,))
-        # test converting the converted
-        with CaptureStderr() as cs:
-            tensor_batch = batch.convert_to_tensors(tensor_type="tf")
-        self.assertFalse(len(cs.err), msg=f"should have no warning, but got {cs.err}")
+    def test_trie_split(self):
+        trie = Trie()
+        self.assertEqual(trie.split("[CLS] This is a extra_id_100"), ["[CLS] This is a extra_id_100"])
+        trie.add("[CLS]")
+        trie.add("extra_id_1")
+        trie.add("extra_id_100")
+        self.assertEqual(trie.split("[CLS] This is a extra_id_100"), ["[CLS]", " This is a ", "extra_id_100"])
 
-        batch = BatchEncoding({"inputs": [1, 2, 3], "labels": 0})
-        tensor_batch = batch.convert_to_tensors(tensor_type="tf", prepend_batch_axis=True)
-        self.assertEqual(tensor_batch["inputs"].shape, (1, 3))
-        self.assertEqual(tensor_batch["labels"].shape, (1,))
+    def test_trie_single(self):
+        trie = Trie()
+        trie.add("A")
+        self.assertEqual(trie.split("ABC"), ["A", "BC"])
+        self.assertEqual(trie.split("BCA"), ["BC", "A"])
 
-    @require_flax
-    def test_batch_encoding_with_labels_jax(self):
-        batch = BatchEncoding({"inputs": [[1, 2, 3], [4, 5, 6]], "labels": [0, 1]})
-        tensor_batch = batch.convert_to_tensors(tensor_type="jax")
-        self.assertEqual(tensor_batch["inputs"].shape, (2, 3))
-        self.assertEqual(tensor_batch["labels"].shape, (2,))
-        # test converting the converted
-        with CaptureStderr() as cs:
-            tensor_batch = batch.convert_to_tensors(tensor_type="jax")
-        self.assertFalse(len(cs.err), msg=f"should have no warning, but got {cs.err}")
+    def test_trie_final(self):
+        trie = Trie()
+        trie.add("TOKEN]")
+        trie.add("[SPECIAL_TOKEN]")
+        self.assertEqual(trie.split("This is something [SPECIAL_TOKEN]"), ["This is something ", "[SPECIAL_TOKEN]"])
 
-        batch = BatchEncoding({"inputs": [1, 2, 3], "labels": 0})
-        tensor_batch = batch.convert_to_tensors(tensor_type="jax", prepend_batch_axis=True)
-        self.assertEqual(tensor_batch["inputs"].shape, (1, 3))
-        self.assertEqual(tensor_batch["labels"].shape, (1,))
+    def test_trie_subtokens(self):
+        trie = Trie()
+        trie.add("A")
+        trie.add("P")
+        trie.add("[SPECIAL_TOKEN]")
+        self.assertEqual(trie.split("This is something [SPECIAL_TOKEN]"), ["This is something ", "[SPECIAL_TOKEN]"])
 
-    def test_padding_accepts_tensors(self):
-        features = [{"input_ids": np.array([0, 1, 2])}, {"input_ids": np.array([0, 1, 2, 3])}]
-        tokenizer = BertTokenizer.from_pretrained("bert-base-cased")
+    def test_trie_suffix_tokens(self):
+        trie = Trie()
+        trie.add("AB")
+        trie.add("B")
+        trie.add("C")
+        self.assertEqual(trie.split("ABC"), ["AB", "C"])
 
-        batch = tokenizer.pad(features, padding=True)
-        self.assertTrue(isinstance(batch["input_ids"], np.ndarray))
-        self.assertEqual(batch["input_ids"].tolist(), [[0, 1, 2, tokenizer.pad_token_id], [0, 1, 2, 3]])
-        batch = tokenizer.pad(features, padding=True, return_tensors="np")
-        self.assertTrue(isinstance(batch["input_ids"], np.ndarray))
-        self.assertEqual(batch["input_ids"].tolist(), [[0, 1, 2, tokenizer.pad_token_id], [0, 1, 2, 3]])
+    def test_trie_skip(self):
+        trie = Trie()
+        trie.add("ABC")
+        trie.add("B")
+        trie.add("CD")
+        self.assertEqual(trie.split("ABCD"), ["ABC", "D"])
 
-    @require_torch
-    def test_padding_accepts_tensors_pt(self):
-        import torch
-
-        features = [{"input_ids": torch.tensor([0, 1, 2])}, {"input_ids": torch.tensor([0, 1, 2, 3])}]
-        tokenizer = BertTokenizer.from_pretrained("bert-base-cased")
-
-        batch = tokenizer.pad(features, padding=True)
-        self.assertTrue(isinstance(batch["input_ids"], torch.Tensor))
-        self.assertEqual(batch["input_ids"].tolist(), [[0, 1, 2, tokenizer.pad_token_id], [0, 1, 2, 3]])
-        batch = tokenizer.pad(features, padding=True, return_tensors="pt")
-        self.assertTrue(isinstance(batch["input_ids"], torch.Tensor))
-        self.assertEqual(batch["input_ids"].tolist(), [[0, 1, 2, tokenizer.pad_token_id], [0, 1, 2, 3]])
-
-    @require_tf
-    def test_padding_accepts_tensors_tf(self):
-        import tensorflow as tf
-
-        features = [{"input_ids": tf.constant([0, 1, 2])}, {"input_ids": tf.constant([0, 1, 2, 3])}]
-        tokenizer = BertTokenizer.from_pretrained("bert-base-cased")
-
-        batch = tokenizer.pad(features, padding=True)
-        self.assertTrue(isinstance(batch["input_ids"], tf.Tensor))
-        self.assertEqual(batch["input_ids"].numpy().tolist(), [[0, 1, 2, tokenizer.pad_token_id], [0, 1, 2, 3]])
-        batch = tokenizer.pad(features, padding=True, return_tensors="tf")
-        self.assertTrue(isinstance(batch["input_ids"], tf.Tensor))
-        self.assertEqual(batch["input_ids"].numpy().tolist(), [[0, 1, 2, tokenizer.pad_token_id], [0, 1, 2, 3]])
-
-    @require_tokenizers
-    def test_instantiation_from_tokenizers(self):
-        bert_tokenizer = Tokenizer(WordPiece(unk_token="[UNK]"))
-        PreTrainedTokenizerFast(tokenizer_object=bert_tokenizer)
-
-    @require_tokenizers
-    def test_instantiation_from_tokenizers_json_file(self):
-        bert_tokenizer = Tokenizer(WordPiece(unk_token="[UNK]"))
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            bert_tokenizer.save(os.path.join(tmpdirname, "tokenizer.json"))
-            PreTrainedTokenizerFast(tokenizer_file=os.path.join(tmpdirname, "tokenizer.json"))
+    def test_cut_text_hardening(self):
+        # Even if the offsets are wrong, we necessarily output correct string
+        # parts.
+        trie = Trie()
+        parts = trie.cut_text("ABC", [0, 0, 2, 1, 2, 3])
+        self.assertEqual(parts, ["AB", "C"])

@@ -1,7 +1,3 @@
-# flake8: noqa
-# There's no way to ignore "F401 '...' imported but unused" warnings in this
-# module, but to preserve other warnings. So, don't check this module at all.
-
 # Copyright 2020 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,8 +14,10 @@
 
 from typing import TYPE_CHECKING
 
-from ...file_utils import (
+from ...utils import (
+    OptionalDependencyNotAvailable,
     _LazyModule,
+    is_flax_available,
     is_sentencepiece_available,
     is_tf_available,
     is_tokenizers_available,
@@ -35,13 +33,28 @@ _import_structure = {
     ],
 }
 
-if is_sentencepiece_available():
+try:
+    if not is_sentencepiece_available():
+        raise OptionalDependencyNotAvailable()
+except OptionalDependencyNotAvailable:
+    pass
+else:
     _import_structure["tokenization_xlm_roberta"] = ["XLMRobertaTokenizer"]
 
-if is_tokenizers_available():
+try:
+    if not is_tokenizers_available():
+        raise OptionalDependencyNotAvailable()
+except OptionalDependencyNotAvailable:
+    pass
+else:
     _import_structure["tokenization_xlm_roberta_fast"] = ["XLMRobertaTokenizerFast"]
 
-if is_torch_available():
+try:
+    if not is_torch_available():
+        raise OptionalDependencyNotAvailable()
+except OptionalDependencyNotAvailable:
+    pass
+else:
     _import_structure["modeling_xlm_roberta"] = [
         "XLM_ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST",
         "XLMRobertaForCausalLM",
@@ -51,19 +64,44 @@ if is_torch_available():
         "XLMRobertaForSequenceClassification",
         "XLMRobertaForTokenClassification",
         "XLMRobertaModel",
+        "XLMRobertaPreTrainedModel",
     ]
 
-if is_tf_available():
+try:
+    if not is_tf_available():
+        raise OptionalDependencyNotAvailable()
+except OptionalDependencyNotAvailable:
+    pass
+else:
     _import_structure["modeling_tf_xlm_roberta"] = [
         "TF_XLM_ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST",
+        "TFXLMRobertaForCausalLM",
         "TFXLMRobertaForMaskedLM",
         "TFXLMRobertaForMultipleChoice",
         "TFXLMRobertaForQuestionAnswering",
         "TFXLMRobertaForSequenceClassification",
         "TFXLMRobertaForTokenClassification",
         "TFXLMRobertaModel",
+        "TFXLMRobertaPreTrainedModel",
     ]
 
+try:
+    if not is_flax_available():
+        raise OptionalDependencyNotAvailable()
+except OptionalDependencyNotAvailable:
+    pass
+else:
+    _import_structure["modeling_flax_xlm_roberta"] = [
+        "FLAX_XLM_ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST",
+        "FlaxXLMRobertaForMaskedLM",
+        "FlaxXLMRobertaForCausalLM",
+        "FlaxXLMRobertaForMultipleChoice",
+        "FlaxXLMRobertaForQuestionAnswering",
+        "FlaxXLMRobertaForSequenceClassification",
+        "FlaxXLMRobertaForTokenClassification",
+        "FlaxXLMRobertaModel",
+        "FlaxXLMRobertaPreTrainedModel",
+    ]
 
 if TYPE_CHECKING:
     from .configuration_xlm_roberta import (
@@ -72,13 +110,28 @@ if TYPE_CHECKING:
         XLMRobertaOnnxConfig,
     )
 
-    if is_sentencepiece_available():
+    try:
+        if not is_sentencepiece_available():
+            raise OptionalDependencyNotAvailable()
+    except OptionalDependencyNotAvailable:
+        pass
+    else:
         from .tokenization_xlm_roberta import XLMRobertaTokenizer
 
-    if is_tokenizers_available():
+    try:
+        if not is_tokenizers_available():
+            raise OptionalDependencyNotAvailable()
+    except OptionalDependencyNotAvailable:
+        pass
+    else:
         from .tokenization_xlm_roberta_fast import XLMRobertaTokenizerFast
 
-    if is_torch_available():
+    try:
+        if not is_torch_available():
+            raise OptionalDependencyNotAvailable()
+    except OptionalDependencyNotAvailable:
+        pass
+    else:
         from .modeling_xlm_roberta import (
             XLM_ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
             XLMRobertaForCausalLM,
@@ -88,20 +141,46 @@ if TYPE_CHECKING:
             XLMRobertaForSequenceClassification,
             XLMRobertaForTokenClassification,
             XLMRobertaModel,
+            XLMRobertaPreTrainedModel,
         )
 
-    if is_tf_available():
+    try:
+        if not is_tf_available():
+            raise OptionalDependencyNotAvailable()
+    except OptionalDependencyNotAvailable:
+        pass
+    else:
         from .modeling_tf_xlm_roberta import (
             TF_XLM_ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
+            TFXLMRobertaForCausalLM,
             TFXLMRobertaForMaskedLM,
             TFXLMRobertaForMultipleChoice,
             TFXLMRobertaForQuestionAnswering,
             TFXLMRobertaForSequenceClassification,
             TFXLMRobertaForTokenClassification,
             TFXLMRobertaModel,
+            TFXLMRobertaPreTrainedModel,
+        )
+
+    try:
+        if not is_flax_available():
+            raise OptionalDependencyNotAvailable()
+    except OptionalDependencyNotAvailable:
+        pass
+    else:
+        from .modeling_flax_xlm_roberta import (
+            FLAX_XLM_ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
+            FlaxXLMRobertaForCausalLM,
+            FlaxXLMRobertaForMaskedLM,
+            FlaxXLMRobertaForMultipleChoice,
+            FlaxXLMRobertaForQuestionAnswering,
+            FlaxXLMRobertaForSequenceClassification,
+            FlaxXLMRobertaForTokenClassification,
+            FlaxXLMRobertaModel,
+            FlaxXLMRobertaPreTrainedModel,
         )
 
 else:
     import sys
 
-    sys.modules[__name__] = _LazyModule(__name__, globals()["__file__"], _import_structure)
+    sys.modules[__name__] = _LazyModule(__name__, globals()["__file__"], _import_structure, module_spec=__spec__)

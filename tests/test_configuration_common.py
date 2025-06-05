@@ -13,32 +13,63 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import copy
 import json
 import os
 import tempfile
-import unittest
 
-from huggingface_hub import HfApi
-from requests.exceptions import HTTPError
-from transformers import BertConfig, GPT2Config
-from transformers.testing_utils import ENDPOINT_STAGING, PASS, USER, is_staging_test
+from transformers import is_torch_available
+
+from .test_configuration_utils import config_common_kwargs
 
 
 class ConfigTester(object):
-    def __init__(self, parent, config_class=None, has_text_modality=True, **kwargs):
+    def __init__(self, parent, config_class=None, has_text_modality=True, common_properties=None, **kwargs):
         self.parent = parent
         self.config_class = config_class
         self.has_text_modality = has_text_modality
         self.inputs_dict = kwargs
+        self.common_properties = common_properties
 
     def create_and_test_config_common_properties(self):
         config = self.config_class(**self.inputs_dict)
+        common_properties = (
+            ["hidden_size", "num_attention_heads", "num_hidden_layers"]
+            if self.common_properties is None
+            else self.common_properties
+        )
+
+        # Add common fields for text models
         if self.has_text_modality:
-            self.parent.assertTrue(hasattr(config, "vocab_size"))
-        self.parent.assertTrue(hasattr(config, "hidden_size"))
-        self.parent.assertTrue(hasattr(config, "num_attention_heads"))
-        self.parent.assertTrue(hasattr(config, "num_hidden_layers"))
+            common_properties.extend(["vocab_size"])
+
+        # Test that config has the common properties as getters
+        for prop in common_properties:
+            self.parent.assertTrue(hasattr(config, prop), msg=f"`{prop}` does not exist")
+
+        # Test that config has the common properties as setter
+        for idx, name in enumerate(common_properties):
+            try:
+                setattr(config, name, idx)
+                self.parent.assertEqual(
+                    getattr(config, name), idx, msg=f"`{name} value {idx} expected, but was {getattr(config, name)}"
+                )
+            except NotImplementedError:
+                # Some models might not be able to implement setters for common_properties
+                # In that case, a NotImplementedError is raised
+                pass
+
+        # Test if config class can be called with Config(prop_name=..)
+        for idx, name in enumerate(common_properties):
+            try:
+                config = self.config_class(**{name: idx})
+                self.parent.assertEqual(
+                    getattr(config, name), idx, msg=f"`{name} value {idx} expected, but was {getattr(config, name)}"
+                )
+            except NotImplementedError:
+                # Some models might not be able to implement setters for common_properties
+                # In that case, a NotImplementedError is raised
+                pass
 
     def create_and_test_config_to_json_string(self):
         config = self.config_class(**self.inputs_dict)
@@ -65,6 +96,17 @@ class ConfigTester(object):
 
         self.parent.assertEqual(config_second.to_dict(), config_first.to_dict())
 
+    def create_and_test_config_from_and_save_pretrained_subfolder(self):
+        config_first = self.config_class(**self.inputs_dict)
+
+        subfolder = "test"
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            sub_tmpdirname = os.path.join(tmpdirname, subfolder)
+            config_first.save_pretrained(sub_tmpdirname)
+            config_second = self.config_class.from_pretrained(tmpdirname, subfolder=subfolder)
+
+        self.parent.assertEqual(config_second.to_dict(), config_first.to_dict())
+
     def create_and_test_config_with_num_labels(self):
         config = self.config_class(**self.inputs_dict, num_labels=5)
         self.parent.assertEqual(len(config.id2label), 5)
@@ -76,82 +118,38 @@ class ConfigTester(object):
 
     def check_config_can_be_init_without_params(self):
         if self.config_class.is_composition:
-            return
-        config = self.config_class()
-        self.parent.assertIsNotNone(config)
+            with self.parent.assertRaises(ValueError):
+                config = self.config_class()
+        else:
+            config = self.config_class()
+            self.parent.assertIsNotNone(config)
+
+    def check_config_arguments_init(self):
+        kwargs = copy.deepcopy(config_common_kwargs)
+        config = self.config_class(**kwargs)
+        wrong_values = []
+        for key, value in config_common_kwargs.items():
+            if key == "torch_dtype":
+                if not is_torch_available():
+                    continue
+                else:
+                    import torch
+
+                    if config.torch_dtype != torch.float16:
+                        wrong_values.append(("torch_dtype", config.torch_dtype, torch.float16))
+            elif getattr(config, key) != value:
+                wrong_values.append((key, getattr(config, key), value))
+
+        if len(wrong_values) > 0:
+            errors = "\n".join([f"- {v[0]}: got {v[1]} instead of {v[2]}" for v in wrong_values])
+            raise ValueError(f"The following keys were not properly set in the config:\n{errors}")
 
     def run_common_tests(self):
         self.create_and_test_config_common_properties()
         self.create_and_test_config_to_json_string()
         self.create_and_test_config_to_json_file()
         self.create_and_test_config_from_and_save_pretrained()
+        self.create_and_test_config_from_and_save_pretrained_subfolder()
         self.create_and_test_config_with_num_labels()
         self.check_config_can_be_init_without_params()
-
-
-@is_staging_test
-class ConfigPushToHubTester(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls._api = HfApi(endpoint=ENDPOINT_STAGING)
-        cls._token = cls._api.login(username=USER, password=PASS)
-
-    @classmethod
-    def tearDownClass(cls):
-        try:
-            cls._api.delete_repo(token=cls._token, name="test-config")
-        except HTTPError:
-            pass
-
-        try:
-            cls._api.delete_repo(token=cls._token, name="test-config-org", organization="valid_org")
-        except HTTPError:
-            pass
-
-    def test_push_to_hub(self):
-        config = BertConfig(
-            vocab_size=99, hidden_size=32, num_hidden_layers=5, num_attention_heads=4, intermediate_size=37
-        )
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            config.save_pretrained(os.path.join(tmp_dir, "test-config"), push_to_hub=True, use_auth_token=self._token)
-
-            new_config = BertConfig.from_pretrained(f"{USER}/test-config")
-            for k, v in config.__dict__.items():
-                if k != "transformers_version":
-                    self.assertEqual(v, getattr(new_config, k))
-
-    def test_push_to_hub_in_organization(self):
-        config = BertConfig(
-            vocab_size=99, hidden_size=32, num_hidden_layers=5, num_attention_heads=4, intermediate_size=37
-        )
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            config.save_pretrained(
-                os.path.join(tmp_dir, "test-config-org"),
-                push_to_hub=True,
-                use_auth_token=self._token,
-                organization="valid_org",
-            )
-
-            new_config = BertConfig.from_pretrained("valid_org/test-config-org")
-            for k, v in config.__dict__.items():
-                if k != "transformers_version":
-                    self.assertEqual(v, getattr(new_config, k))
-
-
-class ConfigTestUtils(unittest.TestCase):
-    def test_config_from_string(self):
-        c = GPT2Config()
-
-        # attempt to modify each of int/float/bool/str config records and verify they were updated
-        n_embd = c.n_embd + 1  # int
-        resid_pdrop = c.resid_pdrop + 1.0  # float
-        scale_attn_weights = not c.scale_attn_weights  # bool
-        summary_type = c.summary_type + "foo"  # str
-        c.update_from_string(
-            f"n_embd={n_embd},resid_pdrop={resid_pdrop},scale_attn_weights={scale_attn_weights},summary_type={summary_type}"
-        )
-        self.assertEqual(n_embd, c.n_embd, "mismatch for key: n_embd")
-        self.assertEqual(resid_pdrop, c.resid_pdrop, "mismatch for key: resid_pdrop")
-        self.assertEqual(scale_attn_weights, c.scale_attn_weights, "mismatch for key: scale_attn_weights")
-        self.assertEqual(summary_type, c.summary_type, "mismatch for key: summary_type")
+        self.check_config_arguments_init()

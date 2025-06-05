@@ -18,11 +18,11 @@ limitations under the License.
 
 ## GLUE tasks
 
-Based on the script [`run_glue.py`](https://github.com/huggingface/transformers/blob/master/examples/pytorch/text-classification/run_glue.py).
+Based on the script [`run_glue.py`](https://github.com/huggingface/transformers/blob/main/examples/pytorch/text-classification/run_glue.py).
 
 Fine-tuning the library models for sequence classification on the GLUE benchmark: [General Language Understanding
 Evaluation](https://gluebenchmark.com/). This script can fine-tune any of the models on the [hub](https://huggingface.co/models)
-and can also be used for a dataset hosted on our [hub](https://huggingface.co/datasets) or your own data in a csv or a JSON file 
+and can also be used for a dataset hosted on our [hub](https://huggingface.co/datasets) or your own data in a csv or a JSON file
 (the script might need some tweaks in that case, refer to the comments inside for help).
 
 GLUE is made up of a total of 9 different tasks. Here is how to run the script on one of them:
@@ -51,10 +51,10 @@ single Titan RTX was used):
 
 | Task  | Metric                       | Result      | Training time |
 |-------|------------------------------|-------------|---------------|
-| CoLA  | Matthew's corr               | 56.53       | 3:17          |
+| CoLA  | Matthews corr                | 56.53       | 3:17          |
 | SST-2 | Accuracy                     | 92.32       | 26:06         |
 | MRPC  | F1/Accuracy                  | 88.85/84.07 | 2:21          |
-| STS-B | Person/Spearman corr.        | 88.64/88.48 | 2:13          |
+| STS-B | Pearson/Spearman corr.       | 88.64/88.48 | 2:13          |
 | QQP   | Accuracy/F1                  | 90.71/87.49 | 2:22:26       |
 | MNLI  | Matched acc./Mismatched acc. | 83.91/84.10 | 2:35:23       |
 | QNLI  | Accuracy                     | 90.66       | 40:57         |
@@ -79,6 +79,57 @@ python run_glue.py \
   --output_dir /tmp/imdb/
 ```
 
+> If your model classification head dimensions do not fit the number of labels in the dataset, you can specify `--ignore_mismatched_sizes` to adapt it.
+
+## Text classification
+As an alternative, we can use the script [`run_classification.py`](./run_classification.py) to fine-tune models on a single/multi-label classification task. 
+
+The following example fine-tunes BERT on the `en` subset of  [`amazon_reviews_multi`](https://huggingface.co/datasets/amazon_reviews_multi) dataset.
+We can specify the metric, the label column and aso choose which text columns to use jointly for classification. 
+```bash
+dataset="amazon_reviews_multi"
+subset="en"
+python run_classification.py \
+    --model_name_or_path  bert-base-uncased \
+    --dataset_name ${dataset} \
+    --dataset_config_name ${subset} \
+    --shuffle_train_dataset \
+    --metric_name accuracy \
+    --text_column_name "review_title,review_body,product_category" \
+    --text_column_delimiter "\n" \
+    --label_column_name stars \
+    --do_train \
+    --do_eval \
+    --max_seq_length 512 \
+    --per_device_train_batch_size 32 \
+    --learning_rate 2e-5 \
+    --num_train_epochs 1 \
+    --output_dir /tmp/${dataset}_${subset}/
+```
+Training for 1 epoch results in acc of around 0.5958 for review_body only and 0.659 for title+body+category.
+
+The following is a multi-label classification example. It fine-tunes BERT on the `reuters21578` dataset hosted on our [hub](https://huggingface.co/datasets/reuters21578):
+```bash
+dataset="reuters21578"
+subset="ModApte"
+python run_classification.py \
+    --model_name_or_path bert-base-uncased \
+    --dataset_name ${dataset} \
+    --dataset_config_name ${subset} \
+    --shuffle_train_dataset \
+    --remove_splits "unused" \
+    --metric_name f1 \
+    --text_column_name text \
+    --label_column_name topics \
+    --do_train \
+    --do_eval \
+    --max_seq_length 512 \
+    --per_device_train_batch_size 32 \
+    --learning_rate 2e-5 \
+    --num_train_epochs 15 \
+    --output_dir /tmp/${dataset}_${subset}/ 
+```
+ It results in a Micro F1 score of around 0.82 without any text and label filtering. Note that you have to explictly remove the "unused" split from the dataset, since it is not used for classification.
 
 ### Mixed precision training
 
@@ -90,10 +141,10 @@ Using mixed precision training usually results in 2x-speedup for training with t
 
 | Task  | Metric                       | Result      | Training time | Result (FP16) | Training time (FP16) |
 |-------|------------------------------|-------------|---------------|---------------|----------------------|
-| CoLA  | Matthew's corr               | 56.53       | 3:17          | 56.78         | 1:41                 |
+| CoLA  | Matthews corr                | 56.53       | 3:17          | 56.78         | 1:41                 |
 | SST-2 | Accuracy                     | 92.32       | 26:06         | 91.74         | 13:11                |
 | MRPC  | F1/Accuracy                  | 88.85/84.07 | 2:21          | 88.12/83.58   | 1:10                 |
-| STS-B | Person/Spearman corr.        | 88.64/88.48 | 2:13          | 88.71/88.55   | 1:08                 |
+| STS-B | Pearson/Spearman corr.       | 88.64/88.48 | 2:13          | 88.71/88.55   | 1:08                 |
 | QQP   | Accuracy/F1                  | 90.71/87.49 | 2:22:26       | 90.67/87.43   | 1:11:54              |
 | MNLI  | Matched acc./Mismatched acc. | 83.91/84.10 | 2:35:23       | 84.04/84.06   | 1:17:06              |
 | QNLI  | Accuracy                     | 90.66       | 40:57         | 90.96         | 20:16                |
@@ -103,7 +154,7 @@ Using mixed precision training usually results in 2x-speedup for training with t
 
 ## PyTorch version, no Trainer
 
-Based on the script [`run_glue_no_trainer.py`](https://github.com/huggingface/transformers/blob/master/examples/pytorch/text-classification/run_glue_no_trainer.py).
+Based on the script [`run_glue_no_trainer.py`](https://github.com/huggingface/transformers/blob/main/examples/pytorch/text-classification/run_glue_no_trainer.py).
 
 Like `run_glue.py`, this script allows you to fine-tune any of the models on the [hub](https://huggingface.co/models) on a
 text classification task, either a GLUE task or your own data in a csv or a JSON file. The main difference is that this
@@ -115,7 +166,7 @@ the mean of the [🤗 `Accelerate`](https://github.com/huggingface/accelerate) l
 after installing it:
 
 ```bash
-pip install accelerate
+pip install git+https://github.com/huggingface/accelerate
 ```
 
 then
@@ -168,3 +219,34 @@ This command is the same and will work for:
 - a training on TPUs
 
 Note that this library is in alpha release so your feedback is more than welcome if you encounter any problem using it.
+
+## XNLI
+
+Based on the script [`run_xnli.py`](https://github.com/huggingface/transformers/blob/main/examples/pytorch/text-classification/run_xnli.py).
+
+[XNLI](https://cims.nyu.edu/~sbowman/xnli/) is a crowd-sourced dataset based on [MultiNLI](https://cims.nyu.edu/~sbowman/multinli/). It is an evaluation benchmark for cross-lingual text representations. Pairs of text are labeled with textual entailment annotations for 15 different languages (including both high-resource language such as English and low-resource languages such as Swahili).
+
+#### Fine-tuning on XNLI
+
+This example code fine-tunes mBERT (multi-lingual BERT) on the XNLI dataset. It runs in 106 mins on a single tesla V100 16GB.
+
+```bash
+python run_xnli.py \
+  --model_name_or_path bert-base-multilingual-cased \
+  --language de \
+  --train_language en \
+  --do_train \
+  --do_eval \
+  --per_device_train_batch_size 32 \
+  --learning_rate 5e-5 \
+  --num_train_epochs 2.0 \
+  --max_seq_length 128 \
+  --output_dir /tmp/debug_xnli/ \
+  --save_steps -1
+```
+
+Training with the previously defined hyper-parameters yields the following results on the **test** set:
+
+```bash
+acc = 0.7093812375249501
+```

@@ -6,18 +6,18 @@ from dataclasses import field
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-import numpy as np
-from datasets import DatasetDict, load_dataset
-from tqdm import tqdm
-
 import flax
 import jax
 import jax.numpy as jnp
 import librosa
+import numpy as np
 import optax
+from datasets import DatasetDict, load_dataset
 from flax import jax_utils, traverse_util
 from flax.training import train_state
 from flax.training.common_utils import get_metrics, onehot, shard
+from tqdm import tqdm
+
 from transformers import (
     FlaxWav2Vec2ForPreTraining,
     HfArgumentParser,
@@ -48,9 +48,6 @@ class ModelArguments:
     freeze_feature_extractor: Optional[bool] = field(
         default=True, metadata={"help": "Whether to freeze the feature extractor layers of the model."}
     )
-    gradient_checkpointing: Optional[bool] = field(
-        default=False, metadata={"help": "Whether to freeze the feature extractor layers of the model."}
-    )
     verbose_logging: Optional[bool] = field(
         default=False,
         metadata={"help": "Whether to log verbose messages or not."},
@@ -67,7 +64,10 @@ class ModelArguments:
     dtype: Optional[str] = field(
         default="float32",
         metadata={
-            "help": "Floating-point format in which the model weights should be initialized and trained. Choose one of `[float32, float16, bfloat16]`."
+            "help": (
+                "Floating-point format in which the model weights should be initialized and trained. Choose one of"
+                " `[float32, float16, bfloat16]`."
+            )
         },
     )
 
@@ -97,7 +97,9 @@ class DataTrainingArguments:
     validation_split_name: Optional[str] = field(
         default="validation",
         metadata={
-            "help": "The name of the validation data set split to use (via the datasets library). Defaults to 'validation'"
+            "help": (
+                "The name of the validation data set split to use (via the datasets library). Defaults to 'validation'"
+            )
         },
     )
     speech_file_column: Optional[str] = field(
@@ -123,7 +125,10 @@ class DataTrainingArguments:
     pad_to_multiple_of: Optional[int] = field(
         default=1024,
         metadata={
-            "help": "If set will pad the sequence to a multiple of the provided value. This is important to avoid triggering recompilations on TPU"
+            "help": (
+                "If set will pad the sequence to a multiple of the provided value. This is important to avoid"
+                " triggering recompilations on TPU"
+            )
         },
     )
 
@@ -174,11 +179,24 @@ class FlaxDataCollatorForWav2Vec2Pretraining:
         )
         mask_indices_seq_length = self.model._get_feat_extract_output_lengths(batch["input_values"].shape[-1])
 
+        batch_size = batch["input_values"].shape[0]
+
+        attention_mask = None
+        if batch["attention_mask"] is not None:
+            output_lengths = self.model._get_feat_extract_output_lengths(batch["attention_mask"].sum(-1))
+            attention_mask = np.zeros((batch_size, mask_indices_seq_length), dtype=np.int8)
+
+            # these two operations makes sure that all values
+            # before the output lengths indices are attended to
+            attention_mask[(np.arange(attention_mask.shape[0]), output_lengths - 1)] = 1
+            attention_mask = jnp.flip(jnp.flip(attention_mask, -1).cumsum(-1), -1).astype("bool")
+
         # sample randomly masked indices
         batch["mask_time_indices"] = _compute_mask_indices(
-            (batch["input_values"].shape[0], mask_indices_seq_length),
+            (batch_size, mask_indices_seq_length),
             self.model.config.mask_time_prob,
             self.model.config.mask_time_length,
+            attention_mask=attention_mask,
             min_masks=2,
         )
 
@@ -186,6 +204,7 @@ class FlaxDataCollatorForWav2Vec2Pretraining:
         batch["sampled_negative_indices"] = _sample_negative_indices(
             (batch["mask_time_indices"].shape + (self.model.config.proj_codevector_dim,)),
             self.model.config.num_negatives,
+            attention_mask=attention_mask,
         )
 
         return batch
@@ -218,7 +237,7 @@ def write_eval_metric(summary_writer, eval_metrics, step):
         summary_writer.scalar(f"eval_{metric_name}", value, step)
 
 
-def generate_batch_splits(samples_idx: jnp.ndarray, batch_size: int) -> jnp.ndarray:
+def generate_batch_splits(samples_idx: np.ndarray, batch_size: int) -> np.ndarray:
     num_samples = len(samples_idx)
     samples_to_remove = num_samples % batch_size
 
@@ -342,15 +361,19 @@ def main():
     config = Wav2Vec2Config.from_pretrained(
         model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
-        gradient_checkpointing=model_args.gradient_checkpointing,
     )
 
     if not config.do_stable_layer_norm or config.feat_extract_norm != "layer":
         raise ValueError(
-            "PreTraining is only supported for ``config.do_stable_layer_norm=True`` and ``config.feat_extract_norm='layer'"
+            "PreTraining is only supported for ``config.do_stable_layer_norm=True`` and"
+            " ``config.feat_extract_norm='layer'"
         )
 
     model = FlaxWav2Vec2ForPreTraining(config, seed=training_args.seed, dtype=getattr(jnp, model_args.dtype))
+
+    # Activate gradient checkpointing if needed
+    if training_args.gradient_checkpointing:
+        model.gradient_checkpointing_enable()
 
     data_collator = FlaxDataCollatorForWav2Vec2Pretraining(
         model=model, feature_extractor=feature_extractor, pad_to_multiple_of=data_args.pad_to_multiple_of
@@ -436,7 +459,7 @@ def main():
             negative_indices = batch.pop("sampled_negative_indices")
 
             gumbel_temperature = jnp.clip(
-                model_args.max_gumbel_temperature * model_args.gumbel_temperature_decay ** state.step,
+                model_args.max_gumbel_temperature * model_args.gumbel_temperature_decay**state.step,
                 a_min=model_args.min_gumbel_temperature,
             )
 
@@ -518,7 +541,8 @@ def main():
 
         # Generate an epoch by shuffling sampling indices from the train dataset
         num_train_samples = len(vectorized_datasets["train"])
-        train_samples_idx = jax.random.permutation(input_rng, jnp.arange(num_train_samples))
+        # Avoid using jax.numpy here in case of TPU training
+        train_samples_idx = np.random.permutation(np.arange(num_train_samples))
         train_batch_idx = generate_batch_splits(train_samples_idx, train_batch_size)
 
         # Gather the indexes for creating the batch and do a training step
@@ -543,14 +567,16 @@ def main():
                     write_train_metric(summary_writer, train_metrics, train_time, cur_step)
 
                 epochs.write(
-                    f"Step... ({cur_step} | Loss: {train_metric['loss'].mean()}, Learning Rate: {train_metric['learning_rate'].mean()})"
+                    f"Step... ({cur_step} | Loss: {train_metric['loss'].mean()}, Learning Rate:"
+                    f" {train_metric['learning_rate'].mean()})"
                 )
 
                 train_metrics = []
 
         # ======================== Evaluating ==============================
         num_eval_samples = len(vectorized_datasets["validation"])
-        eval_samples_idx = jnp.arange(num_eval_samples)
+        # Avoid using jax.numpy here in case of TPU training
+        eval_samples_idx = np.arange(num_eval_samples)
         eval_batch_idx = generate_batch_splits(eval_samples_idx, eval_batch_size)
 
         eval_metrics = []
@@ -565,11 +591,12 @@ def main():
 
         # get eval metrics
         eval_metrics = get_metrics(eval_metrics)
-        eval_metrics = jax.tree_map(jnp.mean, eval_metrics)
+        eval_metrics = jax.tree_util.tree_map(jnp.mean, eval_metrics)
 
         # Update progress bar
         epochs.write(
-            f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {eval_metrics['loss']}, Perplexity: {eval_metrics['codevector_perplexity']})"
+            f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {eval_metrics['loss']}, Perplexity:"
+            f" {eval_metrics['codevector_perplexity']})"
         )
 
         # Save metrics
@@ -579,7 +606,7 @@ def main():
 
         # save checkpoint after each epoch and push checkpoint to the hub
         if jax.process_index() == 0:
-            params = jax.device_get(jax.tree_map(lambda x: x[0], state.params))
+            params = jax.device_get(jax.tree_util.tree_map(lambda x: x[0], state.params))
             model.save_pretrained(training_args.output_dir, params=params, push_to_hub=training_args.push_to_hub)
 
 

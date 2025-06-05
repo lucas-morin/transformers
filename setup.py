@@ -1,4 +1,4 @@
-# Copyright 2020 The HuggingFace Team. All rights reserved.
+# Copyright 2021 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,56 +13,66 @@
 # limitations under the License.
 
 """
-Simple check list from AllenNLP repo: https://github.com/allenai/allennlp/blob/master/setup.py
+Simple check list from AllenNLP repo: https://github.com/allenai/allennlp/blob/main/setup.py
 
 To create the package for pypi.
 
-1. Run `make pre-release` (or `make pre-patch` for a patch release) then run `make fix-copies` to fix the index of the
-   documentation.
+1. Create the release branch named: v<RELEASE>-release, for example v4.19-release. For a patch release checkout the
+   current release branch.
 
-2. Run Tests for Amazon Sagemaker. The documentation is located in `./tests/sagemaker/README.md`, otherwise @philschmid.
+   If releasing on a special branch, copy the updated README.md on the main branch for your the commit you will make
+   for the post-release and run `make fix-copies` on the main branch as well.
 
-3. Unpin specific versions from setup.py that use a git install.
+2. Run `make pre-release` (or `make pre-patch` for a patch release) and commit these changes with the message:
+   "Release: <VERSION>" and push.
 
-4. Commit these changes with the message: "Release: VERSION"
+3. Go back to the main branch and run `make post-release` then `make fix-copies`. Commit these changes with the
+   message "v<NEXT_VERSION>.dev.0" and push to main.
 
-5. Add a tag in git to mark the release: "git tag VERSION -m 'Adds tag VERSION for pypi' "
-   Push the tag to git: git push --tags origin master
+# If you were just cutting the branch in preparation for a release, you can stop here for now.
+
+4. Wait for the tests on the release branch to be completed and be green (otherwise revert and fix bugs)
+
+5. On the release branch, add a tag in git to mark the release: "git tag v<VERSION> -m 'Adds tag v<VERSION> for pypi' "
+   Push the tag to git: git push --tags origin v<RELEASE>-release
 
 6. Build both the sources and the wheel. Do not change anything in setup.py between
    creating the wheel and the source distribution (obviously).
 
-   For the wheel, run: "python setup.py bdist_wheel" in the top level directory.
-   (this will build a wheel for the python version you use to build it).
+   Run `make build-release`. This will build the release and do some sanity checks for you. If this ends with an error
+   message, you need to fix things before going further.
 
-   For the sources, run: "python setup.py sdist"
    You should now have a /dist directory with both .whl and .tar.gz source versions.
 
 7. Check that everything looks correct by uploading the package to the pypi test server:
 
-   twine upload dist/* -r pypitest
+   twine upload dist/* -r testpypi
    (pypi suggest using twine as other methods upload files via plaintext.)
    You may have to specify the repository url, use the following command then:
-   twine upload dist/* -r pypitest --repository-url=https://test.pypi.org/legacy/
+   twine upload dist/* -r testpypi --repository-url=https://test.pypi.org/legacy/
 
    Check that you can install it in a virtualenv by running:
    pip install -i https://testpypi.python.org/pypi transformers
+
+   Check you can run the following commands:
+   python -c "from transformers import pipeline; classifier = pipeline('text-classification'); print(classifier('What a nice release'))"
+   python -c "from transformers import *"
+   python utils/check_build.py --check_lib
+
+   If making a patch release, double check the bug you are patching is indeed resolved.
 
 8. Upload the final version to actual pypi:
    twine upload dist/* -r pypi
 
 9. Copy the release notes from RELEASE.md to the tag in github once everything is looking hunky-dory.
-
-10. Run `make post-release` (or `make post-patch` for a patch release).
 """
 
 import os
 import re
 import shutil
-from distutils.core import Command
 from pathlib import Path
 
-from setuptools import find_packages, setup
+from setuptools import Command, find_packages, setup
 
 
 # Remove stale transformers.egg-info directory to avoid https://github.com/pypa/pip/issues/5466
@@ -85,73 +95,92 @@ if stale_egg_info.exists():
 # 1. all dependencies should be listed here with their version requirements if any
 # 2. once modified, run: `make deps_table_update` to update src/transformers/dependency_versions_table.py
 _deps = [
-    "Pillow",
-    "black==21.4b0",
+    "Pillow<10.0.0",
+    "accelerate>=0.20.3",
+    "av==9.2.0",  # Latest version of PyAV (10.0.0) has issues with audio stream.
+    "beautifulsoup4",
+    "black~=23.1",
     "codecarbon==1.2.0",
-    "cookiecutter==1.7.2",
+    "cookiecutter==1.7.3",
     "dataclasses",
-    "datasets",
-    "deepspeed>=0.4.0",
-    "docutils==0.16.0",
+    "datasets!=2.5.0",
+    "decord==0.6.0",
+    "deepspeed>=0.9.3",
+    "diffusers",
+    "dill<0.3.5",
+    "evaluate>=0.2.0",
     "fairscale>0.3",
     "faiss-cpu",
     "fastapi",
     "filelock",
-    "flake8>=3.8.3",
-    "flax>=0.3.4",
+    "flax>=0.4.1,<=0.7.0",
+    "ftfy",
     "fugashi>=1.0",
-    "huggingface-hub==0.0.12",
+    "GitPython<3.1.19",
+    "hf-doc-builder>=0.3.0",
+    "huggingface-hub>=0.15.1,<1.0",
     "importlib_metadata",
     "ipadic>=1.0.0,<2.0",
     "isort>=5.5.4",
-    "jax>=0.2.8",
-    "jaxlib>=0.1.65",
+    "jax>=0.4.1,<=0.4.13",
+    "jaxlib>=0.4.1,<=0.4.13",
     "jieba",
-    "keras2onnx",
+    "kenlm",
+    "keras-nlp>=0.3.1",
+    "librosa",
     "nltk",
+    "natten>=0.14.6",
     "numpy>=1.17",
     "onnxconverter-common",
     "onnxruntime-tools>=1.4.2",
     "onnxruntime>=1.4.0",
+    "opencv-python",
     "optuna",
-    "optax>=0.0.8",
-    "packaging",
+    "optax>=0.0.8,<=0.1.4",
+    "packaging>=20.0",
     "parameterized",
+    "phonemizer",
     "protobuf",
     "psutil",
     "pyyaml>=5.1",
-    "pydantic",
-    "pytest",
-    "pytest-sugar",
+    "pydantic<2",
+    "pytest>=7.2.0",
+    "pytest-timeout",
     "pytest-xdist",
-    "python>=3.6.0",
+    "python>=3.8.0",
     "ray[tune]",
-    "recommonmark",
     "regex!=2019.12.17",
     "requests",
-    "rouge-score",
-    "sacrebleu>=1.4.12",
+    "rhoknp>=1.1.0,<1.3.1",
+    "rjieba",
+    "rouge-score!=0.0.7,!=0.0.8,!=0.1,!=0.1.1",
+    "ruff>=0.0.241,<=0.0.259",
+    "sacrebleu>=1.4.12,<2.0.0",
     "sacremoses",
+    "safetensors>=0.3.1",
     "sagemaker>=2.31.0",
     "scikit-learn",
-    "sentencepiece==0.1.91",
-    "soundfile",
-    "sphinx-copybutton",
-    "sphinx-markdown-tables",
-    "sphinx-rtd-theme==0.4.3",  # sphinx-rtd-theme==0.5.0 introduced big changes in the style.
-    "sphinx==3.2.1",
-    "sphinxext-opengraph==0.4.1",
+    "sentencepiece>=0.1.91,!=0.1.92",
+    "sigopt",
     "starlette",
-    "tensorflow-cpu>=2.3",
-    "tensorflow>=2.3",
+    "sudachipy>=0.6.6",
+    "sudachidict_core>=20220729",
+    # TensorFlow pin. When changing this value, update examples/tensorflow/_tests_requirements.txt accordingly
+    "tensorflow-cpu>=2.6,<2.15",
+    "tensorflow>=2.6,<2.15",
+    "tensorflow-text<2.15",
+    "tf2onnx",
     "timeout-decorator",
     "timm",
-    "tokenizers>=0.10.1,<0.11",
-    "torch>=1.0",
+    "tokenizers>=0.11.1,!=0.11.3,<0.14",
+    "torch>=1.10,!=1.12.0",
     "torchaudio",
+    "torchvision",
+    "pyctcdecode>=0.4.0",
     "tqdm>=4.27",
     "unidic>=1.0.2",
     "unidic_lite>=1.0.7",
+    "urllib3<2.0.0",
     "uvicorn",
 ]
 
@@ -162,7 +191,7 @@ _deps = [
 # packaging: "packaging"
 #
 # some of the values are versioned whereas others aren't.
-deps = {b: a for a, b in (re.findall(r"^(([^!=<>]+)(?:[!=<>].*)?$)", x)[0] for x in _deps)}
+deps = {b: a for a, b in (re.findall(r"^(([^!=<>~ ]+)(?:[!=<>~ ].*)?$)", x)[0] for x in _deps)}
 
 # since we save this data in src/transformers/dependency_versions_table.py it can be easily accessed from
 # anywhere. If you need to quickly access the data from this table in a shell, you can do so easily with:
@@ -177,7 +206,7 @@ deps = {b: a for a, b in (re.findall(r"^(([^!=<>]+)(?:[!=<>].*)?$)", x)[0] for x
 # You can then feed this for example to `pip`:
 #
 # pip install -U $(python -c 'import sys; from transformers.dependency_versions_table import deps; \
-# print(" ".join([ deps[x] for x in sys.argv[1:]]))' tokenizers datasets)
+# print(" ".join([deps[x] for x in sys.argv[1:]]))' tokenizers datasets)
 #
 
 
@@ -222,13 +251,14 @@ class DepsTableUpdateCommand(Command):
 
 extras = {}
 
-extras["ja"] = deps_list("fugashi", "ipadic", "unidic_lite", "unidic")
+extras["ja"] = deps_list("fugashi", "ipadic", "unidic_lite", "unidic", "sudachipy", "sudachidict_core", "rhoknp")
 extras["sklearn"] = deps_list("scikit-learn")
 
-extras["tf"] = deps_list("tensorflow", "onnxconverter-common", "keras2onnx")
-extras["tf-cpu"] = deps_list("tensorflow-cpu", "onnxconverter-common", "keras2onnx")
+extras["tf"] = deps_list("tensorflow", "onnxconverter-common", "tf2onnx", "tensorflow-text", "keras-nlp")
+extras["tf-cpu"] = deps_list("tensorflow-cpu", "onnxconverter-common", "tf2onnx", "tensorflow-text", "keras-nlp")
 
-extras["torch"] = deps_list("torch")
+extras["torch"] = deps_list("torch", "accelerate")
+extras["accelerate"] = deps_list("accelerate")
 
 if os.name == "nt":  # windows
     extras["retrieval"] = deps_list("datasets")  # faiss is not supported on windows
@@ -238,34 +268,64 @@ else:
     extras["flax"] = deps_list("jax", "jaxlib", "flax", "optax")
 
 extras["tokenizers"] = deps_list("tokenizers")
+extras["ftfy"] = deps_list("ftfy")
 extras["onnxruntime"] = deps_list("onnxruntime", "onnxruntime-tools")
-extras["onnx"] = deps_list("onnxconverter-common", "keras2onnx") + extras["onnxruntime"]
+extras["onnx"] = deps_list("onnxconverter-common", "tf2onnx") + extras["onnxruntime"]
 extras["modelcreation"] = deps_list("cookiecutter")
 
 extras["sagemaker"] = deps_list("sagemaker")
-extras["deepspeed"] = deps_list("deepspeed")
+extras["deepspeed"] = deps_list("deepspeed") + extras["accelerate"]
 extras["fairscale"] = deps_list("fairscale")
 extras["optuna"] = deps_list("optuna")
 extras["ray"] = deps_list("ray[tune]")
+extras["sigopt"] = deps_list("sigopt")
 
-extras["integrations"] = extras["optuna"] + extras["ray"]
+extras["integrations"] = extras["optuna"] + extras["ray"] + extras["sigopt"]
 
 extras["serving"] = deps_list("pydantic", "uvicorn", "fastapi", "starlette")
-extras["speech"] = deps_list("soundfile", "torchaudio")
+extras["audio"] = deps_list("librosa", "pyctcdecode", "phonemizer", "kenlm")
+# `pip install ".[speech]"` is deprecated and `pip install ".[torch-speech]"` should be used instead
+extras["speech"] = deps_list("torchaudio") + extras["audio"]
+extras["torch-speech"] = deps_list("torchaudio") + extras["audio"]
+extras["tf-speech"] = extras["audio"]
+extras["flax-speech"] = extras["audio"]
 extras["vision"] = deps_list("Pillow")
 extras["timm"] = deps_list("timm")
+extras["torch-vision"] = deps_list("torchvision") + extras["vision"]
+extras["natten"] = deps_list("natten")
 extras["codecarbon"] = deps_list("codecarbon")
+extras["video"] = deps_list("decord", "av")
 
 extras["sentencepiece"] = deps_list("sentencepiece", "protobuf")
 extras["testing"] = (
     deps_list(
-        "pytest", "pytest-xdist", "timeout-decorator", "parameterized", "psutil", "datasets", "pytest-sugar", "black", "sacrebleu", "rouge-score", "nltk"
+        "pytest",
+        "pytest-xdist",
+        "timeout-decorator",
+        "parameterized",
+        "psutil",
+        "datasets",
+        "dill",
+        "evaluate",
+        "pytest-timeout",
+        "black",
+        "sacrebleu",
+        "rouge-score",
+        "nltk",
+        "GitPython",
+        "hf-doc-builder",
+        "protobuf",  # Can be removed once we can unpin protobuf
+        "sacremoses",
+        "rjieba",
+        "beautifulsoup4",
     )
     + extras["retrieval"]
     + extras["modelcreation"]
 )
 
-extras["quality"] = deps_list("black", "isort", "flake8")
+extras["deepspeed-testing"] = extras["deepspeed"] + extras["testing"] + extras["optuna"] + extras["sentencepiece"]
+
+extras["quality"] = deps_list("black", "datasets", "isort", "ruff", "GitPython", "hf-doc-builder", "urllib3")
 
 extras["all"] = (
     extras["tf"]
@@ -273,25 +333,53 @@ extras["all"] = (
     + extras["flax"]
     + extras["sentencepiece"]
     + extras["tokenizers"]
-    + extras["speech"]
+    + extras["torch-speech"]
     + extras["vision"]
     + extras["integrations"]
     + extras["timm"]
+    + extras["torch-vision"]
     + extras["codecarbon"]
+    + extras["accelerate"]
+    + extras["video"]
 )
 
-extras["docs_specific"] = deps_list(
-    "docutils",
-    "recommonmark",
-    "sphinx",
-    "sphinx-markdown-tables",
-    "sphinx-rtd-theme",
-    "sphinx-copybutton",
-    "sphinxext-opengraph",
-)
+# Might need to add doc-builder and some specific deps in the future
+extras["docs_specific"] = ["hf-doc-builder"]
+
 # "docs" needs "all" to resolve all the references
 extras["docs"] = extras["all"] + extras["docs_specific"]
 
+extras["dev-torch"] = (
+    extras["testing"]
+    + extras["torch"]
+    + extras["sentencepiece"]
+    + extras["tokenizers"]
+    + extras["torch-speech"]
+    + extras["vision"]
+    + extras["integrations"]
+    + extras["timm"]
+    + extras["torch-vision"]
+    + extras["codecarbon"]
+    + extras["quality"]
+    + extras["ja"]
+    + extras["docs_specific"]
+    + extras["sklearn"]
+    + extras["modelcreation"]
+    + extras["onnxruntime"]
+)
+extras["dev-tensorflow"] = (
+    extras["testing"]
+    + extras["tf"]
+    + extras["sentencepiece"]
+    + extras["tokenizers"]
+    + extras["vision"]
+    + extras["quality"]
+    + extras["docs_specific"]
+    + extras["sklearn"]
+    + extras["modelcreation"]
+    + extras["onnx"]
+    + extras["tf-speech"]
+)
 extras["dev"] = (
     extras["all"]
     + extras["testing"]
@@ -311,17 +399,18 @@ extras["torchhub"] = deps_list(
     "protobuf",
     "regex",
     "requests",
-    "sacremoses",
     "sentencepiece",
     "torch",
     "tokenizers",
     "tqdm",
 )
 
+extras["agents"] = deps_list(
+    "diffusers", "accelerate", "datasets", "torch", "sentencepiece", "opencv-python", "Pillow"
+)
+
 # when modifying the following list, make sure to update src/transformers/dependency_versions_check.py
 install_requires = [
-    deps["dataclasses"] + ";python_version<'3.7'",  # dataclasses for Python versions that don't have it
-    deps["importlib_metadata"] + ";python_version<'3.8'",  # importlib_metadata for Python versions that don't have it
     deps["filelock"],  # filesystem locks, e.g., to prevent parallel downloads
     deps["huggingface-hub"],
     deps["numpy"],
@@ -329,28 +418,31 @@ install_requires = [
     deps["pyyaml"],  # used for the model cards metadata
     deps["regex"],  # for OpenAI GPT
     deps["requests"],  # for downloading models over HTTPS
-    deps["sacremoses"],  # for XLM
     deps["tokenizers"],
+    deps["safetensors"],
     deps["tqdm"],  # progress bars in model download and training scripts
 ]
 
 setup(
     name="transformers",
-    version="4.9.0.dev0",  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
-    author="Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Sam Shleifer, Patrick von Platen, Sylvain Gugger, Suraj Patil, Stas Bekman, Google AI Language Team Authors, Open AI team Authors, Facebook AI Authors, Carnegie Mellon University Authors",
-    author_email="thomas@huggingface.co",
-    description="State-of-the-art Natural Language Processing for TensorFlow 2.0 and PyTorch",
+    version="4.34.0.dev0",  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
+    author="The Hugging Face team (past and future) with the help of all our contributors (https://github.com/huggingface/transformers/graphs/contributors)",
+    author_email="transformers@huggingface.co",
+    description="State-of-the-art Machine Learning for JAX, PyTorch and TensorFlow",
     long_description=open("README.md", "r", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
-    keywords="NLP deep learning transformer pytorch tensorflow BERT GPT GPT-2 google openai CMU",
-    license="Apache",
+    keywords="NLP vision speech deep learning transformer pytorch tensorflow jax BERT GPT-2 Wav2Vec2 ViT",
+    license="Apache 2.0 License",
     url="https://github.com/huggingface/transformers",
     package_dir={"": "src"},
     packages=find_packages("src"),
+    include_package_data=True,
+    package_data={"": ["**/*.cu", "**/*.cpp", "**/*.cuh", "**/*.h", "**/*.pyx"]},
+    zip_safe=False,
     extras_require=extras,
     entry_points={"console_scripts": ["transformers-cli=transformers.commands.transformers_cli:main"]},
-    python_requires=">=3.6.0",
-    install_requires=install_requires,
+    python_requires=">=3.8.0",
+    install_requires=list(install_requires),
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
@@ -359,8 +451,9 @@ setup(
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
     cmdclass={"deps_table_update": DepsTableUpdateCommand},

@@ -14,7 +14,11 @@
 
 from ctypes import c_float, sizeof
 from enum import Enum
-from typing import Any, Dict, Iterable
+from typing import TYPE_CHECKING, Optional, Union
+
+
+if TYPE_CHECKING:
+    from .. import AutoFeatureExtractor, AutoProcessor, AutoTokenizer  # tests_ignore
 
 
 class ParameterFormat(Enum):
@@ -64,19 +68,42 @@ def compute_serialized_parameters_size(num_parameters: int, dtype: ParameterForm
     return num_parameters * dtype.size
 
 
-def flatten_output_collection_property(name: str, field: Iterable[Any]) -> Dict[str, Any]:
+def get_preprocessor(model_name: str) -> Optional[Union["AutoTokenizer", "AutoFeatureExtractor", "AutoProcessor"]]:
     """
-    Flatten any potential nested structure expanding the name of the field with the index of the element within the
-    structure.
+    Gets a preprocessor (tokenizer, feature extractor or processor) that is available for `model_name`.
 
     Args:
-        name: The name of the nested structure
-        field: The structure to, potentially, be flattened
+        model_name (`str`): Name of the model for which a preprocessor are loaded.
 
     Returns:
-        (Dict[str, Any]): Outputs with flattened structure and key mapping this new structure.
-
+        `Optional[Union[AutoTokenizer, AutoFeatureExtractor, AutoProcessor]]`:
+            If a processor is found, it is returned. Otherwise, if a tokenizer or a feature extractor exists, it is
+            returned. If both a tokenizer and a feature extractor exist, an error is raised. The function returns
+            `None` if no preprocessor is found.
     """
-    from itertools import chain
+    # Avoid circular imports by only importing this here.
+    from .. import AutoFeatureExtractor, AutoProcessor, AutoTokenizer  # tests_ignore
 
-    return {f"{name}.{idx}": item for idx, item in enumerate(chain.from_iterable(field))}
+    try:
+        return AutoProcessor.from_pretrained(model_name)
+    except (ValueError, OSError, KeyError):
+        tokenizer, feature_extractor = None, None
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+        except (OSError, KeyError):
+            pass
+        try:
+            feature_extractor = AutoFeatureExtractor.from_pretrained(model_name)
+        except (OSError, KeyError):
+            pass
+
+        if tokenizer is not None and feature_extractor is not None:
+            raise ValueError(
+                f"Couldn't auto-detect preprocessor for {model_name}. Found both a tokenizer and a feature extractor."
+            )
+        elif tokenizer is None and feature_extractor is None:
+            return None
+        elif tokenizer is not None:
+            return tokenizer
+        else:
+            return feature_extractor

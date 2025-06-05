@@ -18,62 +18,31 @@ limitations under the License.
 
 ## GLUE tasks
 
-Based on the script [`run_flax_glue.py`](https://github.com/huggingface/transformers/blob/master/examples/flax/text-classification/run_flax_glue.py).
+Based on the script [`run_flax_glue.py`](https://github.com/huggingface/transformers/blob/main/examples/flax/text-classification/run_flax_glue.py).
 
 Fine-tuning the library models for sequence classification on the GLUE benchmark: [General Language Understanding
-Evaluation](https://gluebenchmark.com/). This script can fine-tune any of the models on the [hub](https://huggingface.co/models).
-
-To begin with it is recommended to create a model repository to save the trained model and logs.
-Here we call the model `"bert-glue-mrpc-test"`, but you can change the model name as you like.
-
-You can do this either directly on [huggingface.co](https://huggingface.co/new) (assuming that
-you are logged in) or via the command line:
-
-```
-huggingface-cli repo create bert-glue-mrpc-test
-```
-
-Next we clone the model repository to add the tokenizer and model files.
-
-```
-git clone https://huggingface.co/<your-username>/bert-glue-mrpc-test
-```
-
-To ensure that all tensorboard traces will be uploaded correctly, we need to 
-track them. You can run the following command inside your model repo to do so.
-
-```
-cd bert-glue-mrpc-test
-git lfs track "*tfevents*"
-```
-
-Great, we have set up our model repository. During training, we will automatically
-push the training logs and model weights to the repo.
-
-Next, let's add a symbolic link to the `run_flax_glue.py`.
-
-```bash
-export TASK_NAME=mrpc
-export MODEL_DIR="./bert-glue-mrpc-test"
-ln -s ~/transformers/examples/flax/text-classification/run_flax_glue.py run_flax_glue.py
-```
-
+Evaluation](https://gluebenchmark.com/). This script can fine-tune any of the models on the [hub](https://huggingface.co/models)  and can also be used for a 
+dataset hosted on our [hub](https://huggingface.co/datasets) or your own data in a csv or a JSON file (the script might need some tweaks in that case, 
+refer to the comments inside for help).
 
 GLUE is made up of a total of 9 different tasks. Here is how to run the script on one of them:
 
 ```bash
+export TASK_NAME=mrpc
+
 python run_flax_glue.py \
   --model_name_or_path bert-base-cased \
   --task_name ${TASK_NAME} \
-  --max_length 128 \
+  --max_seq_length 128 \
   --learning_rate 2e-5 \
   --num_train_epochs 3 \
   --per_device_train_batch_size 4 \
-  --output_dir ${MODEL_DIR} \
+  --eval_steps 100 \
+  --output_dir ./$TASK_NAME/ \
   --push_to_hub
 ```
 
-where task name can be one of cola, mnli, mnli-mm, mrpc, qnli, qqp, rte, sst2, stsb, wnli.
+where task name can be one of cola, mnli, mnli_mismatched, mnli_matched, mrpc, qnli, qqp, rte, sst2, stsb, wnli.
 
 Using the command above, the script will train for 3 epochs and run eval after each epoch. 
 Metrics and hyperparameters are stored in Tensorflow event files in `--output_dir`.
@@ -100,7 +69,7 @@ In the Tensorboard results linked below, the random seed of each model is equal 
 
 | Task  | Metric                       | Acc (best run) | Acc (avg/5runs) | Stdev     | Metrics                                                                  |
 |-------|------------------------------|----------------|-----------------|-----------|--------------------------------------------------------------------------|
-| CoLA  | Matthew's corr               | 60.57          | 59.04           | 1.06      | [tfhub.dev](https://tensorboard.dev/experiment/lfr2adVpRtmLDALKrElkzg/)  |
+| CoLA  | Matthews corr                | 60.57          | 59.04           | 1.06      | [tfhub.dev](https://tensorboard.dev/experiment/lfr2adVpRtmLDALKrElkzg/)  |
 | SST-2 | Accuracy                     | 92.66          | 92.23           | 0.57      | [tfhub.dev](https://tensorboard.dev/experiment/jYvfv2trRHKMjoWnXVwrZA/)  |
 | MRPC  | F1/Accuracy                  | 89.90/85.78    | 88.97/84.36     | 0.72/1.09 | [tfhub.dev](https://tensorboard.dev/experiment/bo3W3DEoRw2Q7YXjWrJkfg/)  |
 | STS-B | Pearson/Spearman corr.       | 89.04/88.70    | 88.94/88.63     | 0.07/0.07 | [tfhub.dev](https://tensorboard.dev/experiment/fxVwbLD7QpKhbot0r9rn2w/)  |
@@ -116,7 +85,7 @@ website. For QQP and WNLI, please refer to [FAQ #12](https://gluebenchmark.com/f
 ### Runtime evaluation
 
 We also ran each task once on a single V100 GPU, 8 V100 GPUs, and 8 Cloud v3 TPUs and report the
-overall training time below. For comparison we ran Pytorch's [run_glue.py](https://github.com/huggingface/transformers/blob/master/examples/pytorch/text-classification/run_glue.py) on a single GPU (last column).
+overall training time below. For comparison we ran Pytorch's [run_glue.py](https://github.com/huggingface/transformers/blob/main/examples/pytorch/text-classification/run_glue.py) on a single GPU (last column).
 
 
 | Task  | TPU v3-8  | 8 GPU      | [1 GPU](https://tensorboard.dev/experiment/mkPS4Zh8TnGe1HB6Yzwj4Q)  | 1 GPU (Pytorch) |

@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" Fine-tuning the library models for named entity recognition."""
+"""Fine-tuning the library models for named entity recognition."""
 
 
 import logging
@@ -24,6 +24,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from seqeval.metrics import classification_report, f1_score, precision_score, recall_score
+from utils_ner import Split, TFTokenClassificationDataset, TokenClassificationTask
 
 from transformers import (
     AutoConfig,
@@ -35,7 +36,6 @@ from transformers import (
     TFTrainingArguments,
 )
 from transformers.utils import logging as hf_logging
-from utils_ner import Split, TFTokenClassificationDataset, TokenClassificationTask
 
 
 hf_logging.set_verbosity_info()
@@ -88,8 +88,10 @@ class DataTrainingArguments:
     max_seq_length: int = field(
         default=128,
         metadata={
-            "help": "The maximum total input sequence length after tokenization. Sequences longer "
-            "than this will be truncated, sequences shorter will be padded."
+            "help": (
+                "The maximum total input sequence length after tokenization. Sequences longer "
+                "than this will be truncated, sequences shorter will be padded."
+            )
         },
     )
     overwrite_cache: bool = field(
@@ -111,7 +113,8 @@ def main():
         and not training_args.overwrite_output_dir
     ):
         raise ValueError(
-            f"Output directory ({training_args.output_dir}) already exists and is not empty. Use --overwrite_output_dir to overcome."
+            f"Output directory ({training_args.output_dir}) already exists and is not empty. Use"
+            " --overwrite_output_dir to overcome."
         )
 
     module = import_module("tasks")
@@ -141,7 +144,7 @@ def main():
 
     # Prepare Token Classification task
     labels = token_classification_task.get_labels(data_args.labels)
-    label_map: Dict[int, str] = {i: label for i, label in enumerate(labels)}
+    label_map: Dict[int, str] = dict(enumerate(labels))
     num_labels = len(labels)
 
     # Load pretrained model and tokenizer

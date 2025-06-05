@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" Convert BertExtAbs's checkpoints.
+"""Convert BertExtAbs's checkpoints.
 
 The script looks like it is doing something trivial but it is not. The "weights"
 proposed by the authors are actually the entire model pickled. We need to load
@@ -24,9 +24,9 @@ import logging
 from collections import namedtuple
 
 import torch
-
 from model_bertabs import BertAbsSummarizer
 from models.model_builder import AbsSummarizer  # The authors' implementation
+
 from transformers import BertTokenizer
 
 

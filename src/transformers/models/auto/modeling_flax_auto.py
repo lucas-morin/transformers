@@ -12,209 +12,262 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" Auto Model class. """
+"""Auto Model class."""
 
 
 from collections import OrderedDict
 
 from ...utils import logging
-from ..bart.modeling_flax_bart import (
-    FlaxBartForConditionalGeneration,
-    FlaxBartForQuestionAnswering,
-    FlaxBartForSequenceClassification,
-    FlaxBartModel,
-)
-from ..bert.modeling_flax_bert import (
-    FlaxBertForMaskedLM,
-    FlaxBertForMultipleChoice,
-    FlaxBertForNextSentencePrediction,
-    FlaxBertForPreTraining,
-    FlaxBertForQuestionAnswering,
-    FlaxBertForSequenceClassification,
-    FlaxBertForTokenClassification,
-    FlaxBertModel,
-)
-from ..big_bird.modeling_flax_big_bird import (
-    FlaxBigBirdForMaskedLM,
-    FlaxBigBirdForMultipleChoice,
-    FlaxBigBirdForPreTraining,
-    FlaxBigBirdForQuestionAnswering,
-    FlaxBigBirdForSequenceClassification,
-    FlaxBigBirdForTokenClassification,
-    FlaxBigBirdModel,
-)
-from ..clip.modeling_flax_clip import FlaxCLIPModel
-from ..electra.modeling_flax_electra import (
-    FlaxElectraForMaskedLM,
-    FlaxElectraForMultipleChoice,
-    FlaxElectraForPreTraining,
-    FlaxElectraForQuestionAnswering,
-    FlaxElectraForSequenceClassification,
-    FlaxElectraForTokenClassification,
-    FlaxElectraModel,
-)
-from ..gpt2.modeling_flax_gpt2 import FlaxGPT2LMHeadModel, FlaxGPT2Model
-from ..gpt_neo.modeling_flax_gpt_neo import FlaxGPTNeoForCausalLM, FlaxGPTNeoModel
-from ..marian.modeling_flax_marian import FlaxMarianModel, FlaxMarianMTModel
-from ..mbart.modeling_flax_mbart import (
-    FlaxMBartForConditionalGeneration,
-    FlaxMBartForQuestionAnswering,
-    FlaxMBartForSequenceClassification,
-    FlaxMBartModel,
-)
-from ..roberta.modeling_flax_roberta import (
-    FlaxRobertaForMaskedLM,
-    FlaxRobertaForMultipleChoice,
-    FlaxRobertaForQuestionAnswering,
-    FlaxRobertaForSequenceClassification,
-    FlaxRobertaForTokenClassification,
-    FlaxRobertaModel,
-)
-from ..t5.modeling_flax_t5 import FlaxT5ForConditionalGeneration, FlaxT5Model
-from ..vit.modeling_flax_vit import FlaxViTForImageClassification, FlaxViTModel
-from ..wav2vec2.modeling_flax_wav2vec2 import FlaxWav2Vec2ForPreTraining, FlaxWav2Vec2Model
-from .auto_factory import _BaseAutoModelClass, auto_class_update
-from .configuration_auto import (
-    BartConfig,
-    BertConfig,
-    BigBirdConfig,
-    CLIPConfig,
-    ElectraConfig,
-    GPT2Config,
-    GPTNeoConfig,
-    MarianConfig,
-    MBartConfig,
-    MT5Config,
-    RobertaConfig,
-    T5Config,
-    ViTConfig,
-    Wav2Vec2Config,
-)
+from .auto_factory import _BaseAutoModelClass, _LazyAutoMapping, auto_class_update
+from .configuration_auto import CONFIG_MAPPING_NAMES
 
 
 logger = logging.get_logger(__name__)
 
 
-FLAX_MODEL_MAPPING = OrderedDict(
+FLAX_MODEL_MAPPING_NAMES = OrderedDict(
     [
         # Base model mapping
-        (RobertaConfig, FlaxRobertaModel),
-        (BertConfig, FlaxBertModel),
-        (BigBirdConfig, FlaxBigBirdModel),
-        (BartConfig, FlaxBartModel),
-        (GPT2Config, FlaxGPT2Model),
-        (GPTNeoConfig, FlaxGPTNeoModel),
-        (ElectraConfig, FlaxElectraModel),
-        (CLIPConfig, FlaxCLIPModel),
-        (ViTConfig, FlaxViTModel),
-        (MBartConfig, FlaxMBartModel),
-        (T5Config, FlaxT5Model),
-        (MT5Config, FlaxT5Model),
-        (Wav2Vec2Config, FlaxWav2Vec2Model),
-        (MarianConfig, FlaxMarianModel),
+        ("albert", "FlaxAlbertModel"),
+        ("bart", "FlaxBartModel"),
+        ("beit", "FlaxBeitModel"),
+        ("bert", "FlaxBertModel"),
+        ("big_bird", "FlaxBigBirdModel"),
+        ("blenderbot", "FlaxBlenderbotModel"),
+        ("blenderbot-small", "FlaxBlenderbotSmallModel"),
+        ("bloom", "FlaxBloomModel"),
+        ("clip", "FlaxCLIPModel"),
+        ("distilbert", "FlaxDistilBertModel"),
+        ("electra", "FlaxElectraModel"),
+        ("gpt-sw3", "FlaxGPT2Model"),
+        ("gpt2", "FlaxGPT2Model"),
+        ("gpt_neo", "FlaxGPTNeoModel"),
+        ("gptj", "FlaxGPTJModel"),
+        ("longt5", "FlaxLongT5Model"),
+        ("marian", "FlaxMarianModel"),
+        ("mbart", "FlaxMBartModel"),
+        ("mt5", "FlaxMT5Model"),
+        ("opt", "FlaxOPTModel"),
+        ("pegasus", "FlaxPegasusModel"),
+        ("regnet", "FlaxRegNetModel"),
+        ("resnet", "FlaxResNetModel"),
+        ("roberta", "FlaxRobertaModel"),
+        ("roberta-prelayernorm", "FlaxRobertaPreLayerNormModel"),
+        ("roformer", "FlaxRoFormerModel"),
+        ("t5", "FlaxT5Model"),
+        ("vision-text-dual-encoder", "FlaxVisionTextDualEncoderModel"),
+        ("vit", "FlaxViTModel"),
+        ("wav2vec2", "FlaxWav2Vec2Model"),
+        ("whisper", "FlaxWhisperModel"),
+        ("xglm", "FlaxXGLMModel"),
+        ("xlm-roberta", "FlaxXLMRobertaModel"),
     ]
 )
 
-FLAX_MODEL_FOR_PRETRAINING_MAPPING = OrderedDict(
+FLAX_MODEL_FOR_PRETRAINING_MAPPING_NAMES = OrderedDict(
     [
         # Model for pre-training mapping
-        (RobertaConfig, FlaxRobertaForMaskedLM),
-        (BertConfig, FlaxBertForPreTraining),
-        (BigBirdConfig, FlaxBigBirdForPreTraining),
-        (BartConfig, FlaxBartForConditionalGeneration),
-        (ElectraConfig, FlaxElectraForPreTraining),
-        (MBartConfig, FlaxMBartForConditionalGeneration),
-        (T5Config, FlaxT5ForConditionalGeneration),
-        (MT5Config, FlaxT5ForConditionalGeneration),
-        (Wav2Vec2Config, FlaxWav2Vec2ForPreTraining),
+        ("albert", "FlaxAlbertForPreTraining"),
+        ("bart", "FlaxBartForConditionalGeneration"),
+        ("bert", "FlaxBertForPreTraining"),
+        ("big_bird", "FlaxBigBirdForPreTraining"),
+        ("electra", "FlaxElectraForPreTraining"),
+        ("longt5", "FlaxLongT5ForConditionalGeneration"),
+        ("mbart", "FlaxMBartForConditionalGeneration"),
+        ("mt5", "FlaxMT5ForConditionalGeneration"),
+        ("roberta", "FlaxRobertaForMaskedLM"),
+        ("roberta-prelayernorm", "FlaxRobertaPreLayerNormForMaskedLM"),
+        ("roformer", "FlaxRoFormerForMaskedLM"),
+        ("t5", "FlaxT5ForConditionalGeneration"),
+        ("wav2vec2", "FlaxWav2Vec2ForPreTraining"),
+        ("whisper", "FlaxWhisperForConditionalGeneration"),
+        ("xlm-roberta", "FlaxXLMRobertaForMaskedLM"),
     ]
 )
 
-FLAX_MODEL_FOR_MASKED_LM_MAPPING = OrderedDict(
+FLAX_MODEL_FOR_MASKED_LM_MAPPING_NAMES = OrderedDict(
     [
         # Model for Masked LM mapping
-        (RobertaConfig, FlaxRobertaForMaskedLM),
-        (BertConfig, FlaxBertForMaskedLM),
-        (BigBirdConfig, FlaxBigBirdForMaskedLM),
-        (BartConfig, FlaxBartForConditionalGeneration),
-        (ElectraConfig, FlaxElectraForMaskedLM),
-        (MBartConfig, FlaxMBartForConditionalGeneration),
+        ("albert", "FlaxAlbertForMaskedLM"),
+        ("bart", "FlaxBartForConditionalGeneration"),
+        ("bert", "FlaxBertForMaskedLM"),
+        ("big_bird", "FlaxBigBirdForMaskedLM"),
+        ("distilbert", "FlaxDistilBertForMaskedLM"),
+        ("electra", "FlaxElectraForMaskedLM"),
+        ("mbart", "FlaxMBartForConditionalGeneration"),
+        ("roberta", "FlaxRobertaForMaskedLM"),
+        ("roberta-prelayernorm", "FlaxRobertaPreLayerNormForMaskedLM"),
+        ("roformer", "FlaxRoFormerForMaskedLM"),
+        ("xlm-roberta", "FlaxXLMRobertaForMaskedLM"),
     ]
 )
 
-FLAX_MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING = OrderedDict(
+FLAX_MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES = OrderedDict(
     [
         # Model for Seq2Seq Causal LM mapping
-        (BartConfig, FlaxBartForConditionalGeneration),
-        (T5Config, FlaxT5ForConditionalGeneration),
-        (MT5Config, FlaxT5ForConditionalGeneration),
-        (MarianConfig, FlaxMarianMTModel),
+        ("bart", "FlaxBartForConditionalGeneration"),
+        ("blenderbot", "FlaxBlenderbotForConditionalGeneration"),
+        ("blenderbot-small", "FlaxBlenderbotSmallForConditionalGeneration"),
+        ("encoder-decoder", "FlaxEncoderDecoderModel"),
+        ("longt5", "FlaxLongT5ForConditionalGeneration"),
+        ("marian", "FlaxMarianMTModel"),
+        ("mbart", "FlaxMBartForConditionalGeneration"),
+        ("mt5", "FlaxMT5ForConditionalGeneration"),
+        ("pegasus", "FlaxPegasusForConditionalGeneration"),
+        ("t5", "FlaxT5ForConditionalGeneration"),
     ]
 )
 
-FLAX_MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING = OrderedDict(
+FLAX_MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
     [
         # Model for Image-classsification
-        (ViTConfig, FlaxViTForImageClassification),
+        ("beit", "FlaxBeitForImageClassification"),
+        ("regnet", "FlaxRegNetForImageClassification"),
+        ("resnet", "FlaxResNetForImageClassification"),
+        ("vit", "FlaxViTForImageClassification"),
     ]
 )
 
-FLAX_MODEL_FOR_CAUSAL_LM_MAPPING = OrderedDict(
+FLAX_MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES = OrderedDict(
+    [
+        ("vision-encoder-decoder", "FlaxVisionEncoderDecoderModel"),
+    ]
+)
+
+FLAX_MODEL_FOR_CAUSAL_LM_MAPPING_NAMES = OrderedDict(
     [
         # Model for Causal LM mapping
-        (GPT2Config, FlaxGPT2LMHeadModel),
-        (GPTNeoConfig, FlaxGPTNeoForCausalLM),
+        ("bart", "FlaxBartForCausalLM"),
+        ("bert", "FlaxBertForCausalLM"),
+        ("big_bird", "FlaxBigBirdForCausalLM"),
+        ("bloom", "FlaxBloomForCausalLM"),
+        ("electra", "FlaxElectraForCausalLM"),
+        ("gpt-sw3", "FlaxGPT2LMHeadModel"),
+        ("gpt2", "FlaxGPT2LMHeadModel"),
+        ("gpt_neo", "FlaxGPTNeoForCausalLM"),
+        ("gptj", "FlaxGPTJForCausalLM"),
+        ("opt", "FlaxOPTForCausalLM"),
+        ("roberta", "FlaxRobertaForCausalLM"),
+        ("roberta-prelayernorm", "FlaxRobertaPreLayerNormForCausalLM"),
+        ("xglm", "FlaxXGLMForCausalLM"),
+        ("xlm-roberta", "FlaxXLMRobertaForCausalLM"),
     ]
 )
 
-FLAX_MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING = OrderedDict(
+FLAX_MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
     [
         # Model for Sequence Classification mapping
-        (RobertaConfig, FlaxRobertaForSequenceClassification),
-        (BertConfig, FlaxBertForSequenceClassification),
-        (BigBirdConfig, FlaxBigBirdForSequenceClassification),
-        (BartConfig, FlaxBartForSequenceClassification),
-        (ElectraConfig, FlaxElectraForSequenceClassification),
-        (MBartConfig, FlaxMBartForSequenceClassification),
+        ("albert", "FlaxAlbertForSequenceClassification"),
+        ("bart", "FlaxBartForSequenceClassification"),
+        ("bert", "FlaxBertForSequenceClassification"),
+        ("big_bird", "FlaxBigBirdForSequenceClassification"),
+        ("distilbert", "FlaxDistilBertForSequenceClassification"),
+        ("electra", "FlaxElectraForSequenceClassification"),
+        ("mbart", "FlaxMBartForSequenceClassification"),
+        ("roberta", "FlaxRobertaForSequenceClassification"),
+        ("roberta-prelayernorm", "FlaxRobertaPreLayerNormForSequenceClassification"),
+        ("roformer", "FlaxRoFormerForSequenceClassification"),
+        ("xlm-roberta", "FlaxXLMRobertaForSequenceClassification"),
     ]
 )
 
-FLAX_MODEL_FOR_QUESTION_ANSWERING_MAPPING = OrderedDict(
+FLAX_MODEL_FOR_QUESTION_ANSWERING_MAPPING_NAMES = OrderedDict(
     [
         # Model for Question Answering mapping
-        (RobertaConfig, FlaxRobertaForQuestionAnswering),
-        (BertConfig, FlaxBertForQuestionAnswering),
-        (BigBirdConfig, FlaxBigBirdForQuestionAnswering),
-        (BartConfig, FlaxBartForQuestionAnswering),
-        (ElectraConfig, FlaxElectraForQuestionAnswering),
-        (MBartConfig, FlaxMBartForQuestionAnswering),
+        ("albert", "FlaxAlbertForQuestionAnswering"),
+        ("bart", "FlaxBartForQuestionAnswering"),
+        ("bert", "FlaxBertForQuestionAnswering"),
+        ("big_bird", "FlaxBigBirdForQuestionAnswering"),
+        ("distilbert", "FlaxDistilBertForQuestionAnswering"),
+        ("electra", "FlaxElectraForQuestionAnswering"),
+        ("mbart", "FlaxMBartForQuestionAnswering"),
+        ("roberta", "FlaxRobertaForQuestionAnswering"),
+        ("roberta-prelayernorm", "FlaxRobertaPreLayerNormForQuestionAnswering"),
+        ("roformer", "FlaxRoFormerForQuestionAnswering"),
+        ("xlm-roberta", "FlaxXLMRobertaForQuestionAnswering"),
     ]
 )
 
-FLAX_MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING = OrderedDict(
+FLAX_MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
     [
         # Model for Token Classification mapping
-        (RobertaConfig, FlaxRobertaForTokenClassification),
-        (BertConfig, FlaxBertForTokenClassification),
-        (BigBirdConfig, FlaxBigBirdForTokenClassification),
-        (ElectraConfig, FlaxElectraForTokenClassification),
+        ("albert", "FlaxAlbertForTokenClassification"),
+        ("bert", "FlaxBertForTokenClassification"),
+        ("big_bird", "FlaxBigBirdForTokenClassification"),
+        ("distilbert", "FlaxDistilBertForTokenClassification"),
+        ("electra", "FlaxElectraForTokenClassification"),
+        ("roberta", "FlaxRobertaForTokenClassification"),
+        ("roberta-prelayernorm", "FlaxRobertaPreLayerNormForTokenClassification"),
+        ("roformer", "FlaxRoFormerForTokenClassification"),
+        ("xlm-roberta", "FlaxXLMRobertaForTokenClassification"),
     ]
 )
 
-FLAX_MODEL_FOR_MULTIPLE_CHOICE_MAPPING = OrderedDict(
+FLAX_MODEL_FOR_MULTIPLE_CHOICE_MAPPING_NAMES = OrderedDict(
     [
         # Model for Multiple Choice mapping
-        (RobertaConfig, FlaxRobertaForMultipleChoice),
-        (BertConfig, FlaxBertForMultipleChoice),
-        (BigBirdConfig, FlaxBigBirdForMultipleChoice),
-        (ElectraConfig, FlaxElectraForMultipleChoice),
+        ("albert", "FlaxAlbertForMultipleChoice"),
+        ("bert", "FlaxBertForMultipleChoice"),
+        ("big_bird", "FlaxBigBirdForMultipleChoice"),
+        ("distilbert", "FlaxDistilBertForMultipleChoice"),
+        ("electra", "FlaxElectraForMultipleChoice"),
+        ("roberta", "FlaxRobertaForMultipleChoice"),
+        ("roberta-prelayernorm", "FlaxRobertaPreLayerNormForMultipleChoice"),
+        ("roformer", "FlaxRoFormerForMultipleChoice"),
+        ("xlm-roberta", "FlaxXLMRobertaForMultipleChoice"),
     ]
 )
 
-FLAX_MODEL_FOR_NEXT_SENTENCE_PREDICTION_MAPPING = OrderedDict(
+FLAX_MODEL_FOR_NEXT_SENTENCE_PREDICTION_MAPPING_NAMES = OrderedDict(
     [
-        (BertConfig, FlaxBertForNextSentencePrediction),
+        ("bert", "FlaxBertForNextSentencePrediction"),
     ]
+)
+
+FLAX_MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES = OrderedDict(
+    [
+        ("speech-encoder-decoder", "FlaxSpeechEncoderDecoderModel"),
+        ("whisper", "FlaxWhisperForConditionalGeneration"),
+    ]
+)
+
+FLAX_MODEL_FOR_AUDIO_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
+    [
+        ("whisper", "FlaxWhisperForAudioClassification"),
+    ]
+)
+
+FLAX_MODEL_MAPPING = _LazyAutoMapping(CONFIG_MAPPING_NAMES, FLAX_MODEL_MAPPING_NAMES)
+FLAX_MODEL_FOR_PRETRAINING_MAPPING = _LazyAutoMapping(CONFIG_MAPPING_NAMES, FLAX_MODEL_FOR_PRETRAINING_MAPPING_NAMES)
+FLAX_MODEL_FOR_MASKED_LM_MAPPING = _LazyAutoMapping(CONFIG_MAPPING_NAMES, FLAX_MODEL_FOR_MASKED_LM_MAPPING_NAMES)
+FLAX_MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING = _LazyAutoMapping(
+    CONFIG_MAPPING_NAMES, FLAX_MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES
+)
+FLAX_MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING = _LazyAutoMapping(
+    CONFIG_MAPPING_NAMES, FLAX_MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING_NAMES
+)
+FLAX_MODEL_FOR_VISION_2_SEQ_MAPPING = _LazyAutoMapping(CONFIG_MAPPING_NAMES, FLAX_MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES)
+FLAX_MODEL_FOR_CAUSAL_LM_MAPPING = _LazyAutoMapping(CONFIG_MAPPING_NAMES, FLAX_MODEL_FOR_CAUSAL_LM_MAPPING_NAMES)
+FLAX_MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING = _LazyAutoMapping(
+    CONFIG_MAPPING_NAMES, FLAX_MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING_NAMES
+)
+FLAX_MODEL_FOR_QUESTION_ANSWERING_MAPPING = _LazyAutoMapping(
+    CONFIG_MAPPING_NAMES, FLAX_MODEL_FOR_QUESTION_ANSWERING_MAPPING_NAMES
+)
+FLAX_MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING = _LazyAutoMapping(
+    CONFIG_MAPPING_NAMES, FLAX_MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING_NAMES
+)
+FLAX_MODEL_FOR_MULTIPLE_CHOICE_MAPPING = _LazyAutoMapping(
+    CONFIG_MAPPING_NAMES, FLAX_MODEL_FOR_MULTIPLE_CHOICE_MAPPING_NAMES
+)
+FLAX_MODEL_FOR_NEXT_SENTENCE_PREDICTION_MAPPING = _LazyAutoMapping(
+    CONFIG_MAPPING_NAMES, FLAX_MODEL_FOR_NEXT_SENTENCE_PREDICTION_MAPPING_NAMES
+)
+FLAX_MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING = _LazyAutoMapping(
+    CONFIG_MAPPING_NAMES, FLAX_MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES
+)
+FLAX_MODEL_FOR_AUDIO_CLASSIFICATION_MAPPING = _LazyAutoMapping(
+    CONFIG_MAPPING_NAMES, FLAX_MODEL_FOR_AUDIO_CLASSIFICATION_MAPPING_NAMES
 )
 
 
@@ -302,4 +355,20 @@ class FlaxAutoModelForImageClassification(_BaseAutoModelClass):
 
 FlaxAutoModelForImageClassification = auto_class_update(
     FlaxAutoModelForImageClassification, head_doc="image classification"
+)
+
+
+class FlaxAutoModelForVision2Seq(_BaseAutoModelClass):
+    _model_mapping = FLAX_MODEL_FOR_VISION_2_SEQ_MAPPING
+
+
+FlaxAutoModelForVision2Seq = auto_class_update(FlaxAutoModelForVision2Seq, head_doc="vision-to-text modeling")
+
+
+class FlaxAutoModelForSpeechSeq2Seq(_BaseAutoModelClass):
+    _model_mapping = FLAX_MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING
+
+
+FlaxAutoModelForSpeechSeq2Seq = auto_class_update(
+    FlaxAutoModelForSpeechSeq2Seq, head_doc="sequence-to-sequence speech-to-text modeling"
 )

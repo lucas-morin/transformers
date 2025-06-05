@@ -16,8 +16,8 @@
 import argparse
 
 import torch
-
 from clip import load
+
 from transformers import CLIPConfig, CLIPModel
 
 
@@ -117,7 +117,7 @@ def convert_clip_checkpoint(checkpoint_path, pytorch_dump_folder_path, config_pa
 
     hf_model = CLIPModel(config).eval()
 
-    pt_model, _ = load(checkpoint_path, jit=False)
+    pt_model, _ = load(checkpoint_path, device="cpu", jit=False)
     pt_model = pt_model.eval()
 
     copy_text_model_and_projection(hf_model, pt_model)
@@ -127,9 +127,9 @@ def convert_clip_checkpoint(checkpoint_path, pytorch_dump_folder_path, config_pa
     input_ids = torch.arange(0, 77).unsqueeze(0)
     pixel_values = torch.randn(1, 3, 224, 224)
 
-    hf_logits_per_image, hf_logits_per_text = hf_model(
-        input_ids=input_ids, pixel_values=pixel_values, return_dict=True
-    )[1:3]
+    hf_outputs = hf_model(input_ids=input_ids, pixel_values=pixel_values, return_dict=True)
+    hf_logits_per_image = hf_outputs.logits_per_image
+    hf_logits_per_text = hf_outputs.logits_per_text
     pt_logits_per_image, pt_logits_per_text = pt_model(pixel_values, input_ids)
 
     assert torch.allclose(hf_logits_per_image, pt_logits_per_image, atol=1e-3)

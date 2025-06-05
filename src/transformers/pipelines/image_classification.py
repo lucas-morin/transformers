@@ -1,25 +1,29 @@
-import os
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import List, Union
 
-import requests
-
-from ..feature_extraction_utils import PreTrainedFeatureExtractor
-from ..file_utils import add_end_docstrings, is_torch_available, is_vision_available, requires_backends
-from ..utils import logging
+from ..utils import (
+    add_end_docstrings,
+    is_tf_available,
+    is_torch_available,
+    is_vision_available,
+    logging,
+    requires_backends,
+)
 from .base import PIPELINE_INIT_ARGS, Pipeline
 
-
-if TYPE_CHECKING:
-    from ..modeling_tf_utils import TFPreTrainedModel
-    from ..modeling_utils import PreTrainedModel
 
 if is_vision_available():
     from PIL import Image
 
-if is_torch_available():
-    import torch
+    from ..image_utils import load_image
 
-    from ..models.auto.modeling_auto import MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING
+if is_tf_available():
+    import tensorflow as tf
+
+    from ..models.auto.modeling_tf_auto import TF_MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING_NAMES
+    from ..tf_utils import stable_softmax
+
+if is_torch_available():
+    from ..models.auto.modeling_auto import MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING_NAMES
 
 logger = logging.get_logger(__name__)
 
@@ -27,56 +31,52 @@ logger = logging.get_logger(__name__)
 @add_end_docstrings(PIPELINE_INIT_ARGS)
 class ImageClassificationPipeline(Pipeline):
     """
-    Image classification pipeline using any :obj:`AutoModelForImageClassification`. This pipeline predicts the class of
-    an image.
+    Image classification pipeline using any `AutoModelForImageClassification`. This pipeline predicts the class of an
+    image.
 
-    This image classification pipeline can currently be loaded from :func:`~transformers.pipeline` using the following
-    task identifier: :obj:`"image-classification"`.
+    Example:
 
-    See the list of available models on `huggingface.co/models
-    <https://huggingface.co/models?filter=image-classification>`__.
+    ```python
+    >>> from transformers import pipeline
+
+    >>> classifier = pipeline(model="microsoft/beit-base-patch16-224-pt22k-ft22k")
+    >>> classifier("https://huggingface.co/datasets/Narsil/image_dummy/raw/main/parrots.png")
+    [{'score': 0.442, 'label': 'macaw'}, {'score': 0.088, 'label': 'popinjay'}, {'score': 0.075, 'label': 'parrot'}, {'score': 0.073, 'label': 'parodist, lampooner'}, {'score': 0.046, 'label': 'poll, poll_parrot'}]
+    ```
+
+    Learn more about the basics of using a pipeline in the [pipeline tutorial](../pipeline_tutorial)
+
+    This image classification pipeline can currently be loaded from [`pipeline`] using the following task identifier:
+    `"image-classification"`.
+
+    See the list of available models on
+    [huggingface.co/models](https://huggingface.co/models?filter=image-classification).
     """
 
-    def __init__(
-        self,
-        model: Union["PreTrainedModel", "TFPreTrainedModel"],
-        feature_extractor: PreTrainedFeatureExtractor,
-        framework: Optional[str] = None,
-        **kwargs
-    ):
-        super().__init__(model, feature_extractor=feature_extractor, framework=framework, **kwargs)
-
-        if self.framework == "tf":
-            raise ValueError(f"The {self.__class__} is only available in PyTorch.")
-
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         requires_backends(self, "vision")
-
-        self.check_model_type(MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING)
-
-        self.feature_extractor = feature_extractor
-
-    @staticmethod
-    def load_image(image: Union[str, "Image.Image"]):
-        if isinstance(image, str):
-            if image.startswith("http://") or image.startswith("https://"):
-                # We need to actually check for a real protocol, otherwise it's impossible to use a local file
-                # like http_huggingface_co.png
-                return Image.open(requests.get(image, stream=True).raw)
-            elif os.path.isfile(image):
-                return Image.open(image)
-        elif isinstance(image, Image.Image):
-            return image
-
-        raise ValueError(
-            "Incorrect format used for image. Should be an url linking to an image, a local path, or a PIL image."
+        self.check_model_type(
+            TF_MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING_NAMES
+            if self.framework == "tf"
+            else MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING_NAMES
         )
 
-    def __call__(self, images: Union[str, List[str], "Image", List["Image"]], top_k=5):
+    def _sanitize_parameters(self, top_k=None, timeout=None):
+        preprocess_params = {}
+        if timeout is not None:
+            preprocess_params["timeout"] = timeout
+        postprocess_params = {}
+        if top_k is not None:
+            postprocess_params["top_k"] = top_k
+        return preprocess_params, {}, postprocess_params
+
+    def __call__(self, images: Union[str, List[str], "Image.Image", List["Image.Image"]], **kwargs):
         """
         Assign labels to the image(s) passed as inputs.
 
         Args:
-            images (:obj:`str`, :obj:`List[str]`, :obj:`PIL.Image` or :obj:`List[PIL.Image]`):
+            images (`str`, `List[str]`, `PIL.Image` or `List[PIL.Image]`):
                 The pipeline handles three types of images:
 
                 - A string containing a http link pointing to an image
@@ -86,9 +86,12 @@ class ImageClassificationPipeline(Pipeline):
                 The pipeline accepts either a single image or a batch of images, which must then be passed as a string.
                 Images in a batch must all be in the same format: all as http links, all as local paths, or all as PIL
                 images.
-            top_k (:obj:`int`, `optional`, defaults to 5):
+            top_k (`int`, *optional*, defaults to 5):
                 The number of top labels that will be returned by the pipeline. If the provided number is higher than
                 the number of labels available in the model configuration, it will default to the number of labels.
+            timeout (`float`, *optional*, defaults to None):
+                The maximum time in seconds to wait for fetching images from the web. If None, no timeout is set and
+                the call may block forever.
 
         Return:
             A dictionary or a list of dictionaries containing result. If the input is a single image, will return a
@@ -97,37 +100,34 @@ class ImageClassificationPipeline(Pipeline):
 
             The dictionaries contain the following keys:
 
-            - **label** (:obj:`str`) -- The label identified by the model.
-            - **score** (:obj:`int`) -- The score attributed by the model for that label.
+            - **label** (`str`) -- The label identified by the model.
+            - **score** (`int`) -- The score attributed by the model for that label.
         """
-        is_batched = isinstance(images, list)
+        return super().__call__(images, **kwargs)
 
-        if not is_batched:
-            images = [images]
+    def preprocess(self, image, timeout=None):
+        image = load_image(image, timeout=timeout)
+        model_inputs = self.image_processor(images=image, return_tensors=self.framework)
+        return model_inputs
 
-        images = [self.load_image(image) for image in images]
+    def _forward(self, model_inputs):
+        model_outputs = self.model(**model_inputs)
+        return model_outputs
 
+    def postprocess(self, model_outputs, top_k=5):
         if top_k > self.model.config.num_labels:
             top_k = self.model.config.num_labels
 
-        with torch.no_grad():
-            inputs = self.feature_extractor(images=images, return_tensors="pt")
-            outputs = self.model(**inputs)
-
-            probs = outputs.logits.softmax(-1)
+        if self.framework == "pt":
+            probs = model_outputs.logits.softmax(-1)[0]
             scores, ids = probs.topk(top_k)
-
-            scores = scores.tolist()
-            ids = ids.tolist()
-
-        if not is_batched:
-            scores, ids = scores[0], ids[0]
-            labels = [{"score": score, "label": self.model.config.id2label[_id]} for score, _id in zip(scores, ids)]
+        elif self.framework == "tf":
+            probs = stable_softmax(model_outputs.logits, axis=-1)[0]
+            topk = tf.math.top_k(probs, k=top_k)
+            scores, ids = topk.values.numpy(), topk.indices.numpy()
         else:
-            labels = []
-            for scores, ids in zip(scores, ids):
-                labels.append(
-                    [{"score": score, "label": self.model.config.id2label[_id]} for score, _id in zip(scores, ids)]
-                )
+            raise ValueError(f"Unsupported framework: {self.framework}")
 
-        return labels
+        scores = scores.tolist()
+        ids = ids.tolist()
+        return [{"score": score, "label": self.model.config.id2label[_id]} for score, _id in zip(scores, ids)]

@@ -12,34 +12,63 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Utility that checks the big table in the file docs/source/en/index.md and potentially updates it.
 
+Use from the root of the repo with:
+
+```bash
+python utils/check_inits.py
+```
+
+for a check that will error in case of inconsistencies (used by `make repo-consistency`).
+
+To auto-fix issues run:
+
+```bash
+python utils/check_inits.py --fix_and_overwrite
+```
+
+which is used by `make fix-copies`.
+"""
 import argparse
 import collections
-import importlib.util
 import os
 import re
+from typing import List
+
+from transformers.utils import direct_transformers_import
 
 
 # All paths are set with the intent you should run this script from the root of the repo with the command
 # python utils/check_table.py
 TRANSFORMERS_PATH = "src/transformers"
-PATH_TO_DOCS = "docs/source"
+PATH_TO_DOCS = "docs/source/en"
 REPO_PATH = "."
 
 
-def _find_text_in_file(filename, start_prompt, end_prompt):
+def _find_text_in_file(filename: str, start_prompt: str, end_prompt: str) -> str:
     """
-    Find the text in `filename` between a line beginning with `start_prompt` and before `end_prompt`, removing empty
-    lines.
+    Find the text in filename between two prompts.
+
+    Args:
+        filename (`str`): The file to search into.
+        start_prompt (`str`): A string to look for at the start of the content searched.
+        end_prompt (`str`): A string that will mark the end of the content to look for.
+
+    Returns:
+        `str`: The content between the prompts.
     """
     with open(filename, "r", encoding="utf-8", newline="\n") as f:
         lines = f.readlines()
+
     # Find the start prompt.
     start_index = 0
     while not lines[start_index].startswith(start_prompt):
         start_index += 1
     start_index += 1
 
+    # Now go until the end prompt.
     end_index = start_index
     while not lines[end_index].startswith(end_prompt):
         end_index += 1
@@ -53,64 +82,78 @@ def _find_text_in_file(filename, start_prompt, end_prompt):
     return "".join(lines[start_index:end_index]), start_index, end_index, lines
 
 
-# Add here suffixes that are used to identify models, seperated by |
-ALLOWED_MODEL_SUFFIXES = "Model|Encoder|Decoder|ForConditionalGeneration"
-# Regexes that match TF/Flax/PT model names.
+# Regexes that match TF/Flax/PT model names. Add here suffixes that are used to identify models, separated by |
 _re_tf_models = re.compile(r"TF(.*)(?:Model|Encoder|Decoder|ForConditionalGeneration)")
 _re_flax_models = re.compile(r"Flax(.*)(?:Model|Encoder|Decoder|ForConditionalGeneration)")
-# Will match any TF or Flax model too so need to be in an else branch afterthe two previous regexes.
+# Will match any TF or Flax model too so need to be in an else branch after the two previous regexes.
 _re_pt_models = re.compile(r"(.*)(?:Model|Encoder|Decoder|ForConditionalGeneration)")
 
 
-# Thanks to https://stackoverflow.com/questions/29916065/how-to-do-camelcase-split-in-python
-def camel_case_split(identifier):
-    "Split a camelcased `identifier` into words."
+# This is to make sure the transformers module imported is the one in the repo.
+transformers_module = direct_transformers_import(TRANSFORMERS_PATH)
+
+
+def camel_case_split(identifier: str) -> List[str]:
+    """
+    Split a camel-cased name into words.
+
+    Args:
+        identifier (`str`): The camel-cased name to parse.
+
+    Returns:
+        `List[str]`: The list of words in the identifier (as seprated by capital letters).
+
+    Example:
+
+    ```py
+    >>> camel_case_split("CamelCasedClass")
+    ["Camel", "Cased", "Class"]
+    ```
+    """
+    # Regex thanks to https://stackoverflow.com/questions/29916065/how-to-do-camelcase-split-in-python
     matches = re.finditer(".+?(?:(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|$)", identifier)
     return [m.group(0) for m in matches]
 
 
-def _center_text(text, width):
+def _center_text(text: str, width: int) -> str:
+    """
+    Utility that will add spaces on the left and right of a text to make it centered for a given width.
+
+    Args:
+        text (`str`): The text to center.
+        width (`int`): The desired length of the result.
+
+    Returns:
+        `str`: A text of length `width` with the original `text` in the middle.
+    """
     text_length = 2 if text == "✅" or text == "❌" else len(text)
     left_indent = (width - text_length) // 2
     right_indent = width - text_length - left_indent
     return " " * left_indent + text + " " * right_indent
 
 
-def get_model_table_from_auto_modules():
-    """Generates an up-to-date model table from the content of the auto modules."""
-    # This is to make sure the transformers module imported is the one in the repo.
-    spec = importlib.util.spec_from_file_location(
-        "transformers",
-        os.path.join(TRANSFORMERS_PATH, "__init__.py"),
-        submodule_search_locations=[TRANSFORMERS_PATH],
-    )
-    transformers = spec.loader.load_module()
-
+def get_model_table_from_auto_modules() -> str:
+    """
+    Generates an up-to-date model table from the content of the auto modules.
+    """
     # Dictionary model names to config.
+    config_maping_names = transformers_module.models.auto.configuration_auto.CONFIG_MAPPING_NAMES
     model_name_to_config = {
-        name: transformers.CONFIG_MAPPING[code] for code, name in transformers.MODEL_NAMES_MAPPING.items()
+        name: config_maping_names[code]
+        for code, name in transformers_module.MODEL_NAMES_MAPPING.items()
+        if code in config_maping_names
     }
-    model_name_to_prefix = {
-        name: config.__name__.replace("Config", "") for name, config in model_name_to_config.items()
-    }
+    model_name_to_prefix = {name: config.replace("Config", "") for name, config in model_name_to_config.items()}
 
-    # Dictionaries flagging if each model prefix has a slow/fast tokenizer, backend in PT/TF/Flax.
-    slow_tokenizers = collections.defaultdict(bool)
-    fast_tokenizers = collections.defaultdict(bool)
+    # Dictionaries flagging if each model prefix has a backend in PT/TF/Flax.
     pt_models = collections.defaultdict(bool)
     tf_models = collections.defaultdict(bool)
     flax_models = collections.defaultdict(bool)
 
     # Let's lookup through all transformers object (once).
-    for attr_name in dir(transformers):
+    for attr_name in dir(transformers_module):
         lookup_dict = None
-        if attr_name.endswith("Tokenizer"):
-            lookup_dict = slow_tokenizers
-            attr_name = attr_name[:-9]
-        elif attr_name.endswith("TokenizerFast"):
-            lookup_dict = fast_tokenizers
-            attr_name = attr_name[:-13]
-        elif _re_tf_models.match(attr_name) is not None:
+        if _re_tf_models.match(attr_name) is not None:
             lookup_dict = tf_models
             attr_name = _re_tf_models.match(attr_name).groups()[0]
         elif _re_flax_models.match(attr_name) is not None:
@@ -130,50 +173,52 @@ def get_model_table_from_auto_modules():
 
     # Let's build that table!
     model_names = list(model_name_to_config.keys())
-    model_names.sort()
-    columns = ["Model", "Tokenizer slow", "Tokenizer fast", "PyTorch support", "TensorFlow support", "Flax Support"]
+    model_names.sort(key=str.lower)
+    columns = ["Model", "PyTorch support", "TensorFlow support", "Flax Support"]
     # We'll need widths to properly display everything in the center (+2 is to leave one extra space on each side).
     widths = [len(c) + 2 for c in columns]
     widths[0] = max([len(name) for name in model_names]) + 2
 
-    # Rst table per se
-    table = ".. rst-class:: center-aligned-table\n\n"
-    table += "+" + "+".join(["-" * w for w in widths]) + "+\n"
-    table += "|" + "|".join([_center_text(c, w) for c, w in zip(columns, widths)]) + "|\n"
-    table += "+" + "+".join(["=" * w for w in widths]) + "+\n"
+    # Build the table per se
+    table = "|" + "|".join([_center_text(c, w) for c, w in zip(columns, widths)]) + "|\n"
+    # Use ":-----:" format to center-aligned table cell texts
+    table += "|" + "|".join([":" + "-" * (w - 2) + ":" for w in widths]) + "|\n"
 
     check = {True: "✅", False: "❌"}
     for name in model_names:
         prefix = model_name_to_prefix[name]
         line = [
             name,
-            check[slow_tokenizers[prefix]],
-            check[fast_tokenizers[prefix]],
             check[pt_models[prefix]],
             check[tf_models[prefix]],
             check[flax_models[prefix]],
         ]
         table += "|" + "|".join([_center_text(l, w) for l, w in zip(line, widths)]) + "|\n"
-        table += "+" + "+".join(["-" * w for w in widths]) + "+\n"
     return table
 
 
 def check_model_table(overwrite=False):
-    """Check the model table in the index.rst is consistent with the state of the lib and maybe `overwrite`."""
+    """
+    Check the model table in the index.md is consistent with the state of the lib and potentially fix it.
+
+    Args:
+        overwrite (`bool`, *optional*, defaults to `False`):
+            Whether or not to overwrite the table when it's not up to date.
+    """
     current_table, start_index, end_index, lines = _find_text_in_file(
-        filename=os.path.join(PATH_TO_DOCS, "index.rst"),
-        start_prompt="    This table is updated automatically from the auto module",
-        end_prompt=".. toctree::",
+        filename=os.path.join(PATH_TO_DOCS, "index.md"),
+        start_prompt="<!--This table is updated automatically from the auto modules",
+        end_prompt="<!-- End table-->",
     )
     new_table = get_model_table_from_auto_modules()
 
     if current_table != new_table:
         if overwrite:
-            with open(os.path.join(PATH_TO_DOCS, "index.rst"), "w", encoding="utf-8", newline="\n") as f:
+            with open(os.path.join(PATH_TO_DOCS, "index.md"), "w", encoding="utf-8", newline="\n") as f:
                 f.writelines(lines[:start_index] + [new_table] + lines[end_index:])
         else:
             raise ValueError(
-                "The model table in the `index.rst` has not been updated. Run `make fix-copies` to fix this."
+                "The model table in the `index.md` has not been updated. Run `make fix-copies` to fix this."
             )
 
 

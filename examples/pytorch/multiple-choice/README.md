@@ -28,7 +28,7 @@ python examples/multiple-choice/run_swag.py \
 --learning_rate 5e-5 \
 --num_train_epochs 3 \
 --output_dir /tmp/swag_base \
---per_gpu_eval_batch_size=16 \
+--per_device_eval_batch_size=16 \
 --per_device_train_batch_size=16 \
 --overwrite_output
 ```
@@ -41,7 +41,7 @@ eval_loss = 0.44457291918821606
 
 ## With Accelerate
 
-Based on the script [run_swag_no_trainer.py](https://github.com/huggingface/transformers/blob/master/examples/pytorch/multiple-choice/run_swag_no_trainer.py).
+Based on the script [run_swag_no_trainer.py](https://github.com/huggingface/transformers/blob/main/examples/pytorch/multiple-choice/run_swag_no_trainer.py).
 
 Like `run_swag.py`, this script allows you to fine-tune any of the models on the [hub](https://huggingface.co/models) (as long as its architecture as a `ForMultipleChoice` version in the library) on
 the SWAG dataset or your own data in a csv or a JSON file. The main difference is that this
@@ -53,7 +53,7 @@ the mean of the [🤗 `Accelerate`](https://github.com/huggingface/accelerate) l
 after installing it:
 
 ```bash
-pip install accelerate
+pip install git+https://github.com/huggingface/accelerate
 ```
 
 then
