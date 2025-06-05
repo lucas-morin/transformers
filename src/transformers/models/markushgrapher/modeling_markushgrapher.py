@@ -36,7 +36,7 @@ import torchvision.transforms as transforms
 from torchvision.transforms import ToPILImage
 from torchvision.utils import save_image
 
-from transformers import UdopConfig
+from transformers import MarkushgrapherConfig
 from transformers.modeling_outputs import (
     Seq2SeqLMOutput,
     Seq2SeqModelOutput,
@@ -57,17 +57,17 @@ from molscribe.tokenizer import get_tokenizer
 
 logger = logging.getLogger(__name__)
 
-UDOP_PRETRAINED_MODEL_ARCHIVE_LIST = [
+MARKUSHGRAPHER_PRETRAINED_MODEL_ARCHIVE_LIST = [
     # TODO update organization
     "nielsr/udop-large",
     # See all UDOP models at https://huggingface.co/models?filter=udop
 ]
 
 
-_CONFIG_FOR_DOC = "UdopConfig"
+_CONFIG_FOR_DOC = "MarkushgrapherConfig"
 
 
-UDOP_START_DOCSTRING = r"""
+MARKUSHGRAPHER_START_DOCSTRING = r"""
     This model inherits from [`PreTrainedModel`]. Check the superclass documentation for the generic methods the
     library implements for all its model (such as downloading or saving, resizing the input embeddings, pruning heads
     etc.)
@@ -82,7 +82,7 @@ UDOP_START_DOCSTRING = r"""
             configuration. Check out the [`~PreTrainedModel.from_pretrained`] method to load the model weights.
 """
 
-UDOP_INPUTS_DOCSTRING = r"""
+MARKUSHGRAPHER_INPUTS_DOCSTRING = r"""
     Args:
         input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
             Indices of input sequence tokens in the vocabulary. UDOP is a model with relative position embeddings so
@@ -153,7 +153,7 @@ UDOP_INPUTS_DOCSTRING = r"""
 """
 
 
-UDOP_ENCODER_INPUTS_DOCSTRING = r"""
+MARKUSHGRAPHER_ENCODER_INPUTS_DOCSTRING = r"""
     Args:
         input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
             Indices of input sequence tokens in the vocabulary. T5 is a model with relative position embeddings so you
@@ -277,7 +277,7 @@ def pad_sequence(seq, target_len, pad_value=0):
     return seq[:target_len]
 
 
-# MarkushGrapher
+# Markushgrapher
 def combine_image_text_embeddings(
     image_embeddings,
     inputs_embeds,
@@ -418,7 +418,7 @@ def combine_image_text_embeddings(
 class MarkushgrapherPatchEmbeddings(nn.Module):
     """2D Image to Patch Embeddings"""
 
-    # MarkushGrapher
+    # Markushgrapher
     def __init__(self, config):
         super().__init__()
         image_size, patch_size = config.image_size, config.patch_size
@@ -503,7 +503,7 @@ class MarkushgrapherPreTrainedModel(PreTrainedModel):
             factor = self.config.initializer_factor
             d_model = self.config.d_model
             module.relative_attention_bias.weight.data.normal_(mean=0.0, std=factor * ((d_model) ** -0.5))
-        elif isinstance(module, MarkushGrapherModel):
+        elif isinstance(module, MarkushgrapherModel):
             # Mesh TensorFlow embeddings initialization
             # See https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L1624
             module.shared.weight.data.normal_(mean=0.0, std=factor * 1.0)
@@ -919,11 +919,11 @@ class MarkushgrapherAttention(nn.Module):
 
 
 # Copied from transformers.models.t5.modeling_t5.T5LayerSelfAttention with T5->Udop
-class MarkushGrapherLayerSelfAttention(nn.Module):
+class MarkushgrapherLayerSelfAttention(nn.Module):
     def __init__(self, config, has_relative_attention_bias=False):
         super().__init__()
-        self.SelfAttention = MarkushGrapherAttention(config, has_relative_attention_bias=has_relative_attention_bias)
-        self.layer_norm = MarkushGrapherLayerNorm(config.d_model, eps=config.layer_norm_epsilon)
+        self.SelfAttention = MarkushgrapherAttention(config, has_relative_attention_bias=has_relative_attention_bias)
+        self.layer_norm = MarkushgrapherLayerNorm(config.d_model, eps=config.layer_norm_epsilon)
         self.dropout = nn.Dropout(config.dropout_rate)
 
     def forward(
@@ -952,11 +952,11 @@ class MarkushGrapherLayerSelfAttention(nn.Module):
 
 
 # Copied from transformers.models.t5.modeling_t5.T5LayerCrossAttention with T5->Udop
-class MarkushGrapherLayerCrossAttention(nn.Module):
+class MarkushgrapherLayerCrossAttention(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.EncDecAttention = MarkushGrapherAttention(config, has_relative_attention_bias=False)
-        self.layer_norm = MarkushGrapherLayerNorm(config.d_model, eps=config.layer_norm_epsilon)
+        self.EncDecAttention = MarkushgrapherAttention(config, has_relative_attention_bias=False)
+        self.layer_norm = MarkushgrapherLayerNorm(config.d_model, eps=config.layer_norm_epsilon)
         self.dropout = nn.Dropout(config.dropout_rate)
 
     def forward(
@@ -989,16 +989,16 @@ class MarkushGrapherLayerCrossAttention(nn.Module):
 
 
 # Copied from transformers.models.t5.modeling_t5.T5Block with T5->Udop
-class MarkushGrapherBlock(nn.Module):
+class MarkushgrapherBlock(nn.Module):
     def __init__(self, config, has_relative_attention_bias=False):
         super().__init__()
         self.is_decoder = config.is_decoder
         self.layer = nn.ModuleList()
-        self.layer.append(MarkushGrapherLayerSelfAttention(config, has_relative_attention_bias=has_relative_attention_bias))
+        self.layer.append(MarkushgrapherLayerSelfAttention(config, has_relative_attention_bias=has_relative_attention_bias))
         if self.is_decoder:
-            self.layer.append(MarkushGrapherLayerCrossAttention(config))
+            self.layer.append(MarkushgrapherLayerCrossAttention(config))
 
-        self.layer.append(MarkushGrapherLayerFF(config))
+        self.layer.append(MarkushgrapherLayerFF(config))
 
     def forward(
         self,
@@ -1113,9 +1113,9 @@ class MarkushGrapherBlock(nn.Module):
         return outputs  # hidden-states, present_key_value_states, (self-attention position bias), (self-attention weights), (cross-attention position bias), (cross-attention weights)
 
 
-class MarkushGrapherCellEmbeddings(nn.Module):
+class MarkushgrapherCellEmbeddings(nn.Module):
     def __init__(self, max_2d_position_embeddings=501, hidden_size=1024, ccat=False):
-        super(MarkushGrapherCellEmbeddings, self).__init__()
+        super(MarkushgrapherCellEmbeddings, self).__init__()
         self.ccat = ccat
         self.max_2d_position_embeddings = max_2d_position_embeddings
         if ccat:
@@ -1155,7 +1155,7 @@ class MarkushGrapherCellEmbeddings(nn.Module):
 
 # get function for bucket computation
 # protected member access seems to be lesser evil than copy paste whole function
-get_relative_position_bucket = MarkushGrapherAttention._relative_position_bucket
+get_relative_position_bucket = MarkushgrapherAttention._relative_position_bucket
 AUGMENTATION_RANGE = (0.80, 1.25)
 
 
@@ -1342,7 +1342,7 @@ BIAS_CLASSES = {
 }
 
 
-def create_relative_bias(config: MarkushGrapherConfig) -> Sequence[RelativePositionBiasBase]:
+def create_relative_bias(config: MarkushgrapherConfig) -> Sequence[RelativePositionBiasBase]:
     """
     Creates empty list or one/multiple relative biases.
 
@@ -1364,7 +1364,7 @@ def create_relative_bias(config: MarkushGrapherConfig) -> Sequence[RelativePosit
     return bias_list
 
 
-class MarkushGrapherStack(MarkushGrapherPreTrainedModel):
+class MarkushgrapherStack(MarkushgrapherPreTrainedModel):
     """
     This class is based on `T5Stack`, but modified to take into account the image modality as well as 2D position
     embeddings.
@@ -1373,7 +1373,7 @@ class MarkushGrapherStack(MarkushGrapherPreTrainedModel):
     def __init__(self, config, embed_tokens=None, embed_patches=None):
         super().__init__(config)
 
-        print("MarkushGrapherStack self.config.architecture_variant:", self.config.architecture_variant)
+        print("MarkushgrapherStack self.config.architecture_variant:", self.config.architecture_variant)
         self.embed_tokens = embed_tokens
         self.embed_patches = embed_patches
         self.is_decoder = config.is_decoder
@@ -1381,14 +1381,14 @@ class MarkushGrapherStack(MarkushGrapherPreTrainedModel):
         self.num_layers = config.num_layers
 
         self.block = nn.ModuleList(
-            [MarkushGrapherBlock(config, has_relative_attention_bias=bool(i == 0)) for i in range(self.num_layers)]
+            [MarkushgrapherBlock(config, has_relative_attention_bias=bool(i == 0)) for i in range(self.num_layers)]
         )
-        self.final_layer_norm = MarkushGrapherLayerNorm(config.d_model, eps=config.layer_norm_epsilon)
+        self.final_layer_norm = MarkushgrapherLayerNorm(config.d_model, eps=config.layer_norm_epsilon)
 
         self.dropout = nn.Dropout(config.dropout_rate)
 
         if not self.is_decoder:
-            self.cell2dembedding = MarkushGrapherCellEmbeddings(config.max_2d_position_embeddings, config.hidden_size)
+            self.cell2dembedding = MarkushgrapherCellEmbeddings(config.max_2d_position_embeddings, config.hidden_size)
 
         # get weights from encoder position bias
         self.relative_bias = self._get_relative_bias(config)
@@ -1400,7 +1400,7 @@ class MarkushGrapherStack(MarkushGrapherPreTrainedModel):
                     bias.relative_attention_bias, self.block[0].layer[0].SelfAttention.relative_attention_bias
                 )
 
-        # MarkushGrapher
+        # Markushgrapher
         if ("molscribe-encoder-4" in self.config.architecture_variant) or (
             "molscribe-encoder-6" in self.config.architecture_variant
         ):
@@ -1445,7 +1445,7 @@ class MarkushGrapherStack(MarkushGrapherPreTrainedModel):
             )
 
     @staticmethod
-    def _get_relative_bias(config: MarkushGrapherConfig) -> RelativePositionBiasAggregated:
+    def _get_relative_bias(config: MarkushgrapherConfig) -> RelativePositionBiasAggregated:
         relative_bias_list = create_relative_bias(config)
         return RelativePositionBiasAggregated(relative_bias_list)
 
@@ -1458,7 +1458,7 @@ class MarkushGrapherStack(MarkushGrapherPreTrainedModel):
     def set_input_embeddings(self, new_embeddings):
         self.embed_tokens = new_embeddings
 
-    # MarkushGrapher
+    # Markushgrapher
     def forward(
         self,
         input_ids=None,
@@ -1770,7 +1770,7 @@ class MarkushGrapherStack(MarkushGrapherPreTrainedModel):
         )
 
 
-class MarkushGrapherModel(MarkushGrapherPreTrainedModel):
+class MarkushgrapherModel(MarkushgrapherPreTrainedModel):
     _tied_weights_keys = [
         "encoder.embed_tokens.weight",
         "decoder.embed_tokens.weight",
@@ -1783,23 +1783,23 @@ class MarkushGrapherModel(MarkushGrapherPreTrainedModel):
     """ """
 
     def __init__(self, config):
-        super(MarkushGrapherModel, self).__init__(config)
+        super(MarkushgrapherModel, self).__init__(config)
 
         # text and image embeddings
         self.shared = nn.Embedding(config.vocab_size, config.d_model)
-        self.patch_embed = MarkushGrapherPatchEmbeddings(config)
+        self.patch_embed = MarkushgrapherPatchEmbeddings(config)
 
         encoder_config = deepcopy(config)
         encoder_config.is_decoder = False
         encoder_config.use_cache = False
         encoder_config.is_encoder_decoder = False
-        self.encoder = MarkushGrapherStack(encoder_config, self.shared, self.patch_embed)
+        self.encoder = MarkushgrapherStack(encoder_config, self.shared, self.patch_embed)
 
         decoder_config = deepcopy(config)
         decoder_config.is_decoder = True
         decoder_config.is_encoder_decoder = False
         decoder_config.num_layers = config.num_decoder_layers
-        self.decoder = MarkushGrapherStack(decoder_config, self.shared)
+        self.decoder = MarkushgrapherStack(decoder_config, self.shared)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -1848,13 +1848,13 @@ class MarkushGrapherModel(MarkushGrapherPreTrainedModel):
         Example:
 
         ```python
-        >>> from transformers import AutoProcessor, MarkushGrapher
+        >>> from transformers import AutoProcessor, Markushgrapher
         >>> from huggingface_hub import hf_hub_download
         >>> from PIL import Image
         >>> import torch
 
         >>> processor = AutoProcessor.from_pretrained("nielsr/udop-large")
-        >>> model = MarkushGrapherModel.from_pretrained("nielsr/udop-large")
+        >>> model = MarkushgrapherModel.from_pretrained("nielsr/udop-large")
 
         >>> # load document image
         >>> filepath = hf_hub_download(
@@ -1935,7 +1935,7 @@ class MarkushGrapherModel(MarkushGrapherPreTrainedModel):
     This class is based on [`T5ForConditionalGeneration`], extended to deal with images and layout (2D) data.""",
     MARKUSHGRAPHER_START_DOCSTRING,
 )
-class MarkushGrapherForConditionalGeneration(MarkushGrapherPreTrainedModel):
+class MarkushgrapherForConditionalGeneration(MarkushgrapherPreTrainedModel):
     _tied_weights_keys = [
         "encoder.embed_tokens.weight",
         "decoder.embed_tokens.weight",
@@ -1957,23 +1957,23 @@ class MarkushGrapherForConditionalGeneration(MarkushGrapherPreTrainedModel):
         """
         Note: .from_pretrained() randomly initialize any parameter which is not in the provided states_dict.
         """
-        super(MarkushGrapherForConditionalGeneration, self).__init__(config)
+        super(MarkushgrapherForConditionalGeneration, self).__init__(config)
 
         # text and image embeddings
         self.shared = nn.Embedding(config.vocab_size, config.d_model)
-        self.patch_embed = MarkushGrapherPatchEmbeddings(config)
+        self.patch_embed = MarkushgrapherPatchEmbeddings(config)
 
         encoder_config = deepcopy(config)
         encoder_config.is_decoder = False
         encoder_config.use_cache = False
         encoder_config.is_encoder_decoder = False
-        self.encoder = MarkushGrapherStack(encoder_config, self.shared, self.patch_embed)
+        self.encoder = MarkushgrapherStack(encoder_config, self.shared, self.patch_embed)
 
         decoder_config = deepcopy(config)
         decoder_config.is_decoder = True
         decoder_config.is_encoder_decoder = False
         decoder_config.num_layers = config.num_decoder_layers
-        self.decoder = MarkushGrapherStack(decoder_config, self.shared)
+        self.decoder = MarkushgrapherStack(decoder_config, self.shared)
 
         # The weights of the language modeling head are shared with those of the encoder and decoder
         self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
@@ -1981,7 +1981,7 @@ class MarkushGrapherForConditionalGeneration(MarkushGrapherPreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
-        # MarkushGrapher
+        # Markushgrapher
         if self.config.architecture_variant == "definition-group-encoder":
             self.definition_groups_dims = {"in": 1024, "out": 1024}
             self.definition_groups_encoder = nn.Sequential(
@@ -2037,7 +2037,7 @@ class MarkushGrapherForConditionalGeneration(MarkushGrapherPreTrainedModel):
                 nn.Linear(1024, 1024), nn.ReLU(), nn.Dropout(0.1), nn.Linear(1024, 1024)
             )
 
-    # MarkushGrapher
+    # Markushgrapher
     def init_molscribe_weights(self):
         if ("molscribe-encoder" in self.config.architecture_variant) and not (
             ("molscribe-encoder-4" in self.config.architecture_variant)
@@ -2128,13 +2128,13 @@ class MarkushGrapherForConditionalGeneration(MarkushGrapherPreTrainedModel):
         Examples:
 
         ```python
-        >>> from transformers import AutoProcessor, MarkushGrapherForConditionalGeneration
+        >>> from transformers import AutoProcessor, MarkushgrapherForConditionalGeneration
         >>> from huggingface_hub import hf_hub_download
         >>> from PIL import Image
 
         >>> # load model and processor
         >>> processor = AutoProcessor.from_pretrained("nielsr/udop-large")
-        >>> model = MarkushGrapherForConditionalGeneration.from_pretrained("nielsr/udop-large")
+        >>> model = MarkushgrapherForConditionalGeneration.from_pretrained("nielsr/udop-large")
 
         >>> # load image
         >>> filepath = hf_hub_download(
@@ -2533,7 +2533,7 @@ class MarkushGrapherForConditionalGeneration(MarkushGrapherPreTrainedModel):
     "The bare UDOP Model transformer outputting encoder's raw hidden-states without any specific head on top.",
     MARKUSHGRAPHER_START_DOCSTRING,
 )
-class MarkushGrapherEncoderModel(MarkushGrapherPreTrainedModel):
+class MarkushgrapherEncoderModel(MarkushgrapherPreTrainedModel):
     _tied_weights_keys = [
         "encoder.embed_tokens.weight",
         "encoder.embed_patches.proj.weight",
@@ -2541,18 +2541,18 @@ class MarkushGrapherEncoderModel(MarkushGrapherPreTrainedModel):
         "encoder.relative_bias.biases.0.relative_attention_bias.weight",
     ]
 
-    def __init__(self, config: MarkushGrapherConfig):
+    def __init__(self, config: MarkushgrapherConfig):
         super().__init__(config)
 
         # text and image embeddings
         self.shared = nn.Embedding(config.vocab_size, config.d_model)
-        self.patch_embed = MarkushGrapherPatchEmbeddings(config)
+        self.patch_embed = MarkushgrapherPatchEmbeddings(config)
 
         encoder_config = deepcopy(config)
         encoder_config.is_decoder = False
         encoder_config.use_cache = False
         encoder_config.is_encoder_decoder = False
-        self.encoder = MarkushGrapherStack(encoder_config, self.shared, self.patch_embed)
+        self.encoder = MarkushgrapherStack(encoder_config, self.shared, self.patch_embed)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -2596,10 +2596,10 @@ class MarkushGrapherEncoderModel(MarkushGrapherPreTrainedModel):
         Example:
 
         ```python
-        >>> from transformers import AutoTokenizer, MarkushGrapherEncoderModel
+        >>> from transformers import AutoTokenizer, MarkushgrapherEncoderModel
 
         >>> tokenizer = AutoTokenizer.from_pretrained("nielsr/udop-large")
-        >>> model = MarkushGrapherEncoderModel.from_pretrained("nielsr/udop-large")
+        >>> model = MarkushgrapherEncoderModel.from_pretrained("nielsr/udop-large")
         >>> input_ids = tokenizer(
         ...     "Studies have been shown that owning a dog is good for you", return_tensors="pt"
         ... ).input_ids  # Batch size 1

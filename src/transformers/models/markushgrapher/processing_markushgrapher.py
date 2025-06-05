@@ -23,7 +23,7 @@ from ...tokenization_utils_base import BatchEncoding, PaddingStrategy, PreTokeni
 from ...utils import TensorType
 
 
-class UdopProcessor(ProcessorMixin):
+class MarkushgrapherProcessor(ProcessorMixin):
     r"""
     Constructs a UDOP processor which combines a UDOP image processor and a UDOP tokenizer into a single processor.
 
@@ -43,8 +43,8 @@ class UdopProcessor(ProcessorMixin):
     """
 
     attributes = ["image_processor", "tokenizer"]
-    image_processor_class = "MarkushGrapherImageProcessor"
-    tokenizer_class = ("MarkushGrapherTokenizer", "MarkushGrapherTokenizerFast")
+    image_processor_class = "MarkushgrapherImageProcessor"
+    tokenizer_class = ("MarkushgrapherTokenizer", "MarkushgrapherTokenizerFast")
 
     def __init__(self, image_processor=None, tokenizer=None):
         if image_processor is None:
