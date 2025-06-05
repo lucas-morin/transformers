@@ -1410,7 +1410,7 @@ class UdopStack(UdopPreTrainedModel):
                     "use_checkpoint": True,
                     "formats": ["chartok_coords", "edges"],
                     "vocab_file": os.path.dirname(__file__)
-                    + "/../../../../../external/MolScribe/molscribe/vocab/vocab_chars.json",
+                    + "/../../../../MolScribe/molscribe/vocab/vocab_chars.json",
                     "coord_bins": 64,
                     "sep_xy": True,
                     "continuous_coords": False,
@@ -2001,7 +2001,7 @@ class UdopForConditionalGeneration(UdopPreTrainedModel):
                     "use_checkpoint": True,
                     "formats": ["chartok_coords", "edges"],
                     "vocab_file": os.path.dirname(__file__)
-                    + "/../../../../../external/MolScribe/molscribe/vocab/vocab_chars.json",
+                    + "/../../../../MolScribe/molscribe/vocab/vocab_chars.json",
                     "coord_bins": 64,
                     "sep_xy": True,
                     "continuous_coords": False,
@@ -2045,7 +2045,7 @@ class UdopForConditionalGeneration(UdopPreTrainedModel):
         ):
             print("Load MolScribe weights")
             states = torch.load(
-                os.path.dirname(__file__) + "/../../../../../external/MolScribe/ckpts/swin_base_char_aux_1m680k.pth",
+                os.path.dirname(__file__) + "/../../../../MolScribe/ckpts/swin_base_char_aux_1m680k.pth",
                 map_location=torch.device("cpu"),
             )
             self.safe_load(self.molscribe_encoder, states["encoder"])
@@ -2060,7 +2060,7 @@ class UdopForConditionalGeneration(UdopPreTrainedModel):
         ):
             print("Load MolScribe weights")
             states = torch.load(
-                os.path.dirname(__file__) + "/../../../../../external/MolScribe/ckpts/swin_base_char_aux_1m680k.pth",
+                os.path.dirname(__file__) + "/../../../../MolScribe/ckpts/swin_base_char_aux_1m680k.pth",
                 map_location=torch.device("cpu"),
             )
             self.safe_load(self.encoder.molscribe_encoder, states["encoder"])
