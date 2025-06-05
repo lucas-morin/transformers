@@ -41,7 +41,7 @@ logger = logging.get_logger(__name__)
 SPIECE_UNDERLINE = "▁"
 
 
-UDOP_ENCODE_KWARGS_DOCSTRING = r"""
+MARKUSHGRAPHER_ENCODE_KWARGS_DOCSTRING = r"""
             add_special_tokens (`bool`, *optional*, defaults to `True`):
                 Whether or not to encode the sequences with the special tokens relative to their model.
             padding (`bool`, `str` or [`~file_utils.PaddingStrategy`], *optional*, defaults to `False`):
@@ -164,7 +164,7 @@ PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES = {
 }
 
 
-class UdopTokenizer(PreTrainedTokenizer):
+class MarkushgrapherTokenizer(PreTrainedTokenizer):
     """
     Adapted from [`LayoutXLMTokenizer`] and [`T5Tokenizer`]. Based on
     [SentencePiece](https://github.com/google/sentencepiece).
@@ -601,7 +601,7 @@ class UdopTokenizer(PreTrainedTokenizer):
 
         return (out_vocab_file,)
 
-    @add_end_docstrings(UDOP_ENCODE_KWARGS_DOCSTRING)
+    @add_end_docstrings(MARKUSHGRAPHER_ENCODE_KWARGS_DOCSTRING)
     def __call__(
         self,
         text: Union[TextInput, PreTokenizedInput, List[TextInput], List[PreTokenizedInput]] = None,
@@ -1034,7 +1034,7 @@ class UdopTokenizer(PreTrainedTokenizer):
 
         return BatchEncoding(batch_outputs)
 
-    @add_end_docstrings(UDOP_ENCODE_KWARGS_DOCSTRING)
+    @add_end_docstrings(MARKUSHGRAPHER_ENCODE_KWARGS_DOCSTRING)
     def _batch_prepare_for_model_boxes(
         self,
         batch_text_or_text_pairs,
@@ -1157,7 +1157,7 @@ class UdopTokenizer(PreTrainedTokenizer):
             verbose=verbose,
         )
 
-    @add_end_docstrings(UDOP_ENCODE_KWARGS_DOCSTRING)
+    @add_end_docstrings(MARKUSHGRAPHER_ENCODE_KWARGS_DOCSTRING)
     def prepare_for_model_boxes(
         self,
         text: Union[TextInput, PreTokenizedInput],

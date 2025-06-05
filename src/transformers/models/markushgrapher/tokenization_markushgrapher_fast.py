@@ -29,7 +29,7 @@ from ...tokenization_utils_base import (
 )
 from ...tokenization_utils_fast import PreTrainedTokenizerFast
 from ...utils import PaddingStrategy, TensorType, add_end_docstrings, is_sentencepiece_available, logging
-from ..udop.tokenization_udop import (
+from ..markushgrapher.tokenization_markushgrapher import (
     PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES,
     PRETRAINED_VOCAB_FILES_MAP,
     VOCAB_FILES_NAMES,
@@ -37,14 +37,14 @@ from ..udop.tokenization_udop import (
 
 
 if is_sentencepiece_available():
-    from .tokenization_udop import UdopTokenizer
+    from .tokenization_markushgrapher import MarkushgrapherTokenizer
 else:
-    UdopTokenizer = None
+    MarkushgrapherTokenizer = None
 
 
 logger = logging.get_logger(__name__)
 
-UDOP_ENCODE_KWARGS_DOCSTRING = r"""
+MARKUSHGRAPHER_ENCODE_KWARGS_DOCSTRING = r"""
             add_special_tokens (`bool`, *optional*, defaults to `True`):
                 Whether or not to encode the sequences with the special tokens relative to their model.
             padding (`bool`, `str` or [`~file_utils.PaddingStrategy`], *optional*, defaults to `False`):
@@ -148,7 +148,7 @@ UDOP_ENCODE_KWARGS_DOCSTRING = r"""
 """
 
 
-class UdopTokenizerFast(PreTrainedTokenizerFast):
+class MarkushgrapherTokenizerFast(PreTrainedTokenizerFast):
     """
     Construct a "fast" UDOP tokenizer (backed by HuggingFace's *tokenizers* library). Adapted from
     [`LayoutXLMTokenizer`] and [`T5Tokenizer`]. Based on
@@ -200,7 +200,7 @@ class UdopTokenizerFast(PreTrainedTokenizerFast):
     pretrained_vocab_files_map = PRETRAINED_VOCAB_FILES_MAP
     max_model_input_sizes = PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES
     model_input_names = ["input_ids", "attention_mask"]
-    slow_tokenizer_class = UdopTokenizer
+    slow_tokenizer_class = MarkushgrapherTokenizer
 
     def __init__(
         self,
@@ -263,7 +263,7 @@ class UdopTokenizerFast(PreTrainedTokenizerFast):
         self.pad_token_label = pad_token_label
         self.only_label_first_subword = only_label_first_subword
 
-    @add_end_docstrings(UDOP_ENCODE_KWARGS_DOCSTRING)
+    @add_end_docstrings(MARKUSHGRAPHER_ENCODE_KWARGS_DOCSTRING)
     def __call__(
         self,
         text: Union[TextInput, PreTokenizedInput, List[TextInput], List[PreTokenizedInput]] = None,
@@ -298,7 +298,7 @@ class UdopTokenizerFast(PreTrainedTokenizerFast):
             encodings["labels"] = target_encodings["input_ids"]
             return encodings
 
-    @add_end_docstrings(UDOP_ENCODE_KWARGS_DOCSTRING)
+    @add_end_docstrings(MARKUSHGRAPHER_ENCODE_KWARGS_DOCSTRING)
     def call_boxes(
         self,
         text: Union[TextInput, PreTokenizedInput, List[TextInput], List[PreTokenizedInput]],

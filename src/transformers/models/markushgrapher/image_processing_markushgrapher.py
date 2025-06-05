@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Image processor class for UDOP."""
+"""Image processor class for Markushgrapher."""
 
 from typing import Dict, List, Optional, Union
 
@@ -86,9 +86,9 @@ def apply_tesseract(image: np.ndarray, lang: Optional[str], tesseract_config: Op
     return words, normalized_boxes
 
 
-class UdopImageProcessor(BaseImageProcessor):
+class MarkushgrapherImageProcessor(BaseImageProcessor):
     r"""
-    Constructs a UDOP image processor.
+    Constructs a Markushgrapher image processor.
 
     Args:
         do_resize (`bool`, *optional*, defaults to `True`):

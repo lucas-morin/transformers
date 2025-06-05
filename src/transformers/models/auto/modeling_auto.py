@@ -195,6 +195,7 @@ MODEL_MAPPING_NAMES = OrderedDict(
         ("transfo-xl", "TransfoXLModel"),
         ("tvlt", "TvltModel"),
         ("udop", "UdopModel"),
+        ("markushgrapher", "MarkushGrapherModel"),
         ("umt5", "UMT5Model"),
         ("unispeech", "UniSpeechModel"),
         ("unispeech-sat", "UniSpeechSatModel"),

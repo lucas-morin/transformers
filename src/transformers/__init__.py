@@ -568,6 +568,11 @@ _import_structure = {
         "UdopConfig",
         "UdopProcessor",
     ],
+    "models.markushgrapher": [
+        "MARKUSHGRAPHER_PRETRAINED_CONFIG_ARCHIVE_MAP",
+        "MarkushgrapherConfig",
+        "MarkushgrapherProcessor",
+    ],
     "models.umt5": ["UMT5Config"],
     "models.unispeech": [
         "UNISPEECH_PRETRAINED_CONFIG_ARCHIVE_MAP",
@@ -802,6 +807,7 @@ else:
     _import_structure["models.speecht5"].append("SpeechT5Tokenizer")
     _import_structure["models.t5"].append("T5Tokenizer")
     _import_structure["models.udop"].append("UdopTokenizer")
+    _import_structure["models.markushgrapher"].append("MarkushgrapherTokenizer")
     _import_structure["models.xglm"].append("XGLMTokenizer")
     _import_structure["models.xlm_prophetnet"].append("XLMProphetNetTokenizer")
     _import_structure["models.xlm_roberta"].append("XLMRobertaTokenizer")
@@ -874,6 +880,7 @@ else:
     _import_structure["models.squeezebert"].append("SqueezeBertTokenizerFast")
     _import_structure["models.t5"].append("T5TokenizerFast")
     _import_structure["models.udop"].append("UdopTokenizerFast")
+    _import_structure["models.markushgrapher"].append("MarkushgrapherTokenizerFast")
     _import_structure["models.whisper"].append("WhisperTokenizerFast")
     _import_structure["models.xglm"].append("XGLMTokenizerFast")
     _import_structure["models.xlm_roberta"].append("XLMRobertaTokenizerFast")
@@ -989,6 +996,7 @@ else:
     _import_structure["models.swin2sr"].append("Swin2SRImageProcessor")
     _import_structure["models.tvlt"].append("TvltImageProcessor")
     _import_structure["models.udop"].append("UdopImageProcessor")
+    _import_structure["models.markushgrapher"].append("MarkushgrapherImageProcessor")
     _import_structure["models.videomae"].extend(["VideoMAEFeatureExtractor", "VideoMAEImageProcessor"])
     _import_structure["models.vilt"].extend(["ViltFeatureExtractor", "ViltImageProcessor", "ViltProcessor"])
     _import_structure["models.vit"].extend(["ViTFeatureExtractor", "ViTImageProcessor"])
@@ -2857,6 +2865,15 @@ else:
             "UdopPreTrainedModel",
         ]
     )
+    _import_structure["models.markushgrapher"].extend(
+        [
+            "MARKUSHGRAPHER_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "MarkushgrapherEncoderModel",
+            "MarkushgrapherForConditionalGeneration",
+            "MarkushgrapherModel",
+            "MarkushgrapherPreTrainedModel",
+        ]
+    )
     _import_structure["models.umt5"].extend(
         [
             "UMT5EncoderModel",
@@ -4673,6 +4690,7 @@ if TYPE_CHECKING:
     from .models.trocr import TROCR_PRETRAINED_CONFIG_ARCHIVE_MAP, TrOCRConfig, TrOCRProcessor
     from .models.tvlt import TVLT_PRETRAINED_CONFIG_ARCHIVE_MAP, TvltConfig, TvltFeatureExtractor, TvltProcessor
     from .models.udop import UDOP_PRETRAINED_CONFIG_ARCHIVE_MAP, UdopConfig, UdopProcessor
+    from .models.markushgrapher import MARKUSHGRAPHER_PRETRAINED_CONFIG_ARCHIVE_MAP, MarkushgrapherConfig, MarkushgrapherProcessor
     from .models.umt5 import UMT5Config
     from .models.unispeech import UNISPEECH_PRETRAINED_CONFIG_ARCHIVE_MAP, UniSpeechConfig
     from .models.unispeech_sat import UNISPEECH_SAT_PRETRAINED_CONFIG_ARCHIVE_MAP, UniSpeechSatConfig
@@ -4895,6 +4913,7 @@ if TYPE_CHECKING:
         from .models.speecht5 import SpeechT5Tokenizer
         from .models.t5 import T5Tokenizer
         from .models.udop import UdopTokenizer
+        from .models.markushgrapher import MarkushgrapherTokenizer
         from .models.xglm import XGLMTokenizer
         from .models.xlm_prophetnet import XLMProphetNetTokenizer
         from .models.xlm_roberta import XLMRobertaTokenizer
@@ -4960,6 +4979,7 @@ if TYPE_CHECKING:
         from .models.squeezebert import SqueezeBertTokenizerFast
         from .models.t5 import T5TokenizerFast
         from .models.udop import UdopTokenizerFast
+        from .models.markushgrapher import MarkushgrapherTokenizerFast
         from .models.whisper import WhisperTokenizerFast
         from .models.xglm import XGLMTokenizerFast
         from .models.xlm_roberta import XLMRobertaTokenizerFast
@@ -5046,6 +5066,7 @@ if TYPE_CHECKING:
         from .models.swin2sr import Swin2SRImageProcessor
         from .models.tvlt import TvltImageProcessor
         from .models.udop import UdopImageProcessor
+        from .models.markushgrapher import MarkushgrapherImageProcessor
         from .models.videomae import VideoMAEFeatureExtractor, VideoMAEImageProcessor
         from .models.vilt import ViltFeatureExtractor, ViltImageProcessor, ViltProcessor
         from .models.vit import ViTFeatureExtractor, ViTImageProcessor
@@ -6585,6 +6606,13 @@ if TYPE_CHECKING:
             UdopForConditionalGeneration,
             UdopModel,
             UdopPreTrainedModel,
+        )
+        from .models.markushgrapher import (
+            MARKUSHGRAPHER_PRETRAINED_MODEL_ARCHIVE_LIST,
+            MarkushgrapherEncoderModel,
+            MarkushgrapherForConditionalGeneration,
+            MarkushgrapherModel,
+            MarkushgrapherPreTrainedModel,
         )
         from .models.umt5 import (
             UMT5EncoderModel,

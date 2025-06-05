@@ -43,8 +43,8 @@ class UdopProcessor(ProcessorMixin):
     """
 
     attributes = ["image_processor", "tokenizer"]
-    image_processor_class = "UdopImageProcessor"
-    tokenizer_class = ("UdopTokenizer", "UdopTokenizerFast")
+    image_processor_class = "MarkushGrapherImageProcessor"
+    tokenizer_class = ("MarkushGrapherTokenizer", "MarkushGrapherTokenizerFast")
 
     def __init__(self, image_processor=None, tokenizer=None):
         if image_processor is None:

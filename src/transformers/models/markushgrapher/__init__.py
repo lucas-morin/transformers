@@ -25,8 +25,8 @@ from ...utils import (
 
 
 _import_structure = {
-    "configuration_markushgrapher": ["UDOP_PRETRAINED_CONFIG_ARCHIVE_MAP", "UdopConfig"],
-    "processing_markushgrapher": ["UdopProcessor"],
+    "configuration_markushgrapher": ["MARKUSHGRAPHER_PRETRAINED_CONFIG_ARCHIVE_MAP", "MarkushgrapherConfig"],
+    "processing_markushgrapher": ["MarkushgrapherProcessor"],
 }
 
 try:
@@ -35,7 +35,7 @@ try:
 except OptionalDependencyNotAvailable:
     pass
 else:
-    _import_structure["tokenization_markushgrapher"] = ["UdopTokenizer"]
+    _import_structure["tokenization_markushgrapher"] = ["MarkushgrapherTokenizer"]
 
 try:
     if not is_tokenizers_available():
@@ -43,7 +43,7 @@ try:
 except OptionalDependencyNotAvailable:
     pass
 else:
-    _import_structure["tokenization_markushgrapher_fast"] = ["UdopTokenizerFast"]
+    _import_structure["tokenization_markushgrapher_fast"] = ["MarkushgrapherTokenizerFast"]
 
 try:
     if not is_vision_available():
@@ -51,7 +51,7 @@ try:
 except OptionalDependencyNotAvailable:
     pass
 else:
-    _import_structure["image_processing_markushgrapher"] = ["UdopImageProcessor"]
+    _import_structure["image_processing_markushgrapher"] = ["MarkushgrapherImageProcessor"]
 
 try:
     if not is_torch_available():
@@ -60,16 +60,16 @@ except OptionalDependencyNotAvailable:
     pass
 else:
     _import_structure["modeling_markushgrapher"] = [
-        "UDOP_PRETRAINED_MODEL_ARCHIVE_LIST",
-        "UdopForConditionalGeneration",
-        "UdopPreTrainedModel",
-        "UdopModel",
-        "UdopEncoderModel",
+        "MARKUSHGRAPHER_PRETRAINED_MODEL_ARCHIVE_LIST",
+        "MarkushgrapherForConditionalGeneration",
+        "MarkushgrapherPreTrainedModel",
+        "MarkushgrapherModel",
+        "MarkushgrapherEncoderModel",
     ]
 
 if TYPE_CHECKING:
-    from .configuration_markushgrapher import UDOP_PRETRAINED_CONFIG_ARCHIVE_MAP, UdopConfig
-    from .processing_markushgrapher import UdopProcessor
+    from .configuration_markushgrapher import MARKUSHGRAPHER_PRETRAINED_CONFIG_ARCHIVE_MAP, MarkushgrapherConfig
+    from .processing_markushgrapher import MarkushgrapherProcessor
 
     try:
         if not is_sentencepiece_available():
@@ -77,7 +77,7 @@ if TYPE_CHECKING:
     except OptionalDependencyNotAvailable:
         pass
     else:
-        from .tokenization_markushgrapher import UdopTokenizer
+        from .tokenization_markushgrapher import MarkushgrapherTokenizer
 
     try:
         if not is_tokenizers_available():
@@ -85,7 +85,7 @@ if TYPE_CHECKING:
     except OptionalDependencyNotAvailable:
         pass
     else:
-        from .tokenization_markushgrapher_fast import UdopTokenizerFast
+        from .tokenization_markushgrapher_fast import MarkushgrapherTokenizerFast
 
     try:
         if not is_vision_available():
@@ -93,7 +93,7 @@ if TYPE_CHECKING:
     except OptionalDependencyNotAvailable:
         pass
     else:
-        from .image_processing_markushgrapher import UdopImageProcessor
+        from .image_processing_markushgrapher import MarkushgrapherImageProcessor
 
     try:
         if not is_torch_available():
@@ -102,11 +102,11 @@ if TYPE_CHECKING:
         pass
     else:
         from .modeling_markushgrapher import (
-            UDOP_PRETRAINED_MODEL_ARCHIVE_LIST,
-            UdopEncoderModel,
-            UdopForConditionalGeneration,
-            UdopModel,
-            UdopPreTrainedModel,
+            MARKUSHGRAPHER_PRETRAINED_MODEL_ARCHIVE_LIST,
+            MarkushgrapherEncoderModel,
+            MarkushgrapherForConditionalGeneration,
+            MarkushgrapherModel,
+            MarkushgrapherPreTrainedModel,
         )
 
 else:

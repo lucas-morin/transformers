@@ -501,6 +501,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
+This fork contains the code for the architecture of MarkushGrapher. It is created by modifying the file `modeling_udop.py` of the UDOP model. The code is stored at `src/transformers/models/markushgrapher/`.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://huggingface.co/datasets/huggingface/documentation-images/raw/main/transformers-logo-dark.svg">

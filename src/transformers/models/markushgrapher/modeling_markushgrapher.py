@@ -291,7 +291,7 @@ def combine_image_text_embeddings(
     verbose=False,
 ):
     """
-    Combine the image and text embeddings for the input to the encoder/decoder of UDOP.
+    Combine the image and text embeddings for the input to the encoder/decoder of Markushgrapher.
 
     First, the image embeddings are created by checking for each visual patch if it is inside the bounding box of a
     token. If it is, the visual patch is combined with the token embedding. Then, the visual bounding boxes are combined
@@ -415,7 +415,7 @@ def combine_image_text_embeddings(
     return inputs_embeds, bbox, attention_mask
 
 
-class UdopPatchEmbeddings(nn.Module):
+class MarkushgrapherPatchEmbeddings(nn.Module):
     """2D Image to Patch Embeddings"""
 
     # MarkushGrapher
@@ -470,22 +470,22 @@ class UdopPatchEmbeddings(nn.Module):
         return embeddings
 
 
-class UdopPreTrainedModel(PreTrainedModel):
+class MarkushgrapherPreTrainedModel(PreTrainedModel):
     """
     An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
     models. Based on `T5PreTrainedModel`.
     """
 
-    config_class = UdopConfig
+    config_class = MarkushgrapherConfig
     base_model_prefix = "transformer"
     supports_gradient_checkpointing = True
-    _no_split_modules = ["UdopBlock"]
+    _no_split_modules = ["MarkushgrapherBlock"]
     _keep_in_fp32_modules = ["wo"]
 
     def _init_weights(self, module):
         """Initialize the weights"""
         factor = self.config.initializer_factor  # Used for testing weights initialization
-        if isinstance(module, UdopLayerNorm):
+        if isinstance(module, MarkushgrapherLayerNorm):
             module.weight.data.fill_(factor * 1.0)
         elif isinstance(module, nn.Embedding):
             module.weight.data.normal_(mean=0.0, std=factor)
@@ -507,10 +507,10 @@ class UdopPreTrainedModel(PreTrainedModel):
             # Mesh TensorFlow embeddings initialization
             # See https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L1624
             module.shared.weight.data.normal_(mean=0.0, std=factor * 1.0)
-        elif isinstance(module, UdopForConditionalGeneration):
+        elif isinstance(module, MarkushgrapherForConditionalGeneration):
             if hasattr(module, "lm_head") and not self.config.tie_word_embeddings:
                 module.lm_head.weight.data.normal_(mean=0.0, std=factor * 1.0)
-        elif isinstance(module, UdopDenseActDense):
+        elif isinstance(module, MarkushgrapherDenseActDense):
             # Mesh TensorFlow FF initialization
             # See https://github.com/tensorflow/mesh/blob/master/mesh_tensorflow/transformer/transformer_layers.py#L56
             # and https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L89
@@ -520,7 +520,7 @@ class UdopPreTrainedModel(PreTrainedModel):
             module.wo.weight.data.normal_(mean=0.0, std=factor * ((self.config.d_ff) ** -0.5))
             if hasattr(module.wo, "bias") and module.wo.bias is not None:
                 module.wo.bias.data.zero_()
-        elif isinstance(module, UdopDenseGatedActDense):
+        elif isinstance(module, MarkushgrapherDenseGatedActDense):
             module.wi_0.weight.data.normal_(mean=0.0, std=factor * ((self.config.d_model) ** -0.5))
             if hasattr(module.wi_0, "bias") and module.wi_0.bias is not None:
                 module.wi_0.bias.data.zero_()
@@ -530,7 +530,7 @@ class UdopPreTrainedModel(PreTrainedModel):
             module.wo.weight.data.normal_(mean=0.0, std=factor * ((self.config.d_ff) ** -0.5))
             if hasattr(module.wo, "bias") and module.wo.bias is not None:
                 module.wo.bias.data.zero_()
-        elif isinstance(module, UdopAttention):
+        elif isinstance(module, MarkushgrapherAttention):
             # Mesh TensorFlow attention initialization to avoid scaling before softmax
             # See https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/transformer/attention.py#L136
             d_model = self.config.d_model
@@ -544,7 +544,7 @@ class UdopPreTrainedModel(PreTrainedModel):
                 module.relative_attention_bias.weight.data.normal_(mean=0.0, std=factor * ((d_model) ** -0.5))
 
     def _set_gradient_checkpointing(self, module, value=False):
-        if isinstance(module, (UdopAttention, UdopStack)):
+        if isinstance(module, (MarkushgrapherAttention, MarkushgrapherStack)):
             module.gradient_checkpointing = value
 
     def _shift_right(self, input_ids):
@@ -552,8 +552,8 @@ class UdopPreTrainedModel(PreTrainedModel):
         pad_token_id = self.config.pad_token_id
 
         assert decoder_start_token_id is not None, (
-            "self.model.config.decoder_start_token_id has to be defined. In Udop it is usually set to the pad_token_id."
-            " See Udop docs for more information"
+            "self.model.config.decoder_start_token_id has to be defined. In Markushgrapher it is usually set to the pad_token_id."
+            " See Markushgrapher docs for more information"
         )
 
         # shift inputs to the right
@@ -569,7 +569,7 @@ class UdopPreTrainedModel(PreTrainedModel):
 
 
 # Copied from transformers.models.t5.modeling_t5.T5LayerNorm with T5->Udop
-class UdopLayerNorm(nn.Module):
+class MarkushgrapherLayerNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-6):
         """
         Construct a layernorm module in the Udop style. No bias and no subtraction of mean.
@@ -597,22 +597,22 @@ class UdopLayerNorm(nn.Module):
 try:
     from apex.normalization import FusedRMSNorm
 
-    UdopLayerNorm = FusedRMSNorm  # noqa
+    MarkushgrapherLayerNorm = FusedRMSNorm  # noqa
 
-    logger.info("Discovered apex.normalization.FusedRMSNorm - will use it instead of UdopLayerNorm")
+    logger.info("Discovered apex.normalization.FusedRMSNorm - will use it instead of MarkushgrapherLayerNorm")
 except ImportError:
-    # using the normal UdopLayerNorm
+    # using the normal MarkushgrapherLayerNorm
     pass
 except Exception:
-    logger.warning("discovered apex but it failed to load, falling back to UdopLayerNorm")
+    logger.warning("discovered apex but it failed to load, falling back to MarkushgrapherLayerNorm")
     pass
 
-ALL_LAYERNORM_LAYERS.append(UdopLayerNorm)
+ALL_LAYERNORM_LAYERS.append(MarkushgrapherLayerNorm)
 
 
 # Copied from transformers.models.t5.modeling_t5.T5DenseActDense with T5->Udop
-class UdopDenseActDense(nn.Module):
-    def __init__(self, config: UdopConfig):
+class MarkushgrapherDenseActDense(nn.Module):
+    def __init__(self, config: MarkushgrapherConfig):
         super().__init__()
         self.wi = nn.Linear(config.d_model, config.d_ff, bias=False)
         self.wo = nn.Linear(config.d_ff, config.d_model, bias=False)
@@ -633,9 +633,9 @@ class UdopDenseActDense(nn.Module):
         return hidden_states
 
 
-# Copied from transformers.models.t5.modeling_t5.T5DenseGatedActDense with T5->Udop
-class UdopDenseGatedActDense(nn.Module):
-    def __init__(self, config: UdopConfig):
+# Copied from transformers.models.t5.modeling_t5.T5DenseGatedActDense with T5->Markushgrapher
+class MarkushgrapherDenseGatedActDense(nn.Module):
+    def __init__(self, config: MarkushgrapherConfig):
         super().__init__()
         self.wi_0 = nn.Linear(config.d_model, config.d_ff, bias=False)
         self.wi_1 = nn.Linear(config.d_model, config.d_ff, bias=False)
@@ -664,15 +664,15 @@ class UdopDenseGatedActDense(nn.Module):
 
 
 # Copied from transformers.models.t5.modeling_t5.T5LayerFF with T5->Udop
-class UdopLayerFF(nn.Module):
-    def __init__(self, config: UdopConfig):
+class MarkushgrapherLayerFF(nn.Module):
+    def __init__(self, config: MarkushgrapherConfig):
         super().__init__()
         if config.is_gated_act:
-            self.DenseReluDense = UdopDenseGatedActDense(config)
+            self.DenseReluDense = MarkushgrapherDenseGatedActDense(config)
         else:
-            self.DenseReluDense = UdopDenseActDense(config)
+            self.DenseReluDense = MarkushgrapherDenseActDense(config)
 
-        self.layer_norm = UdopLayerNorm(config.d_model, eps=config.layer_norm_epsilon)
+        self.layer_norm = MarkushgrapherLayerNorm(config.d_model, eps=config.layer_norm_epsilon)
         self.dropout = nn.Dropout(config.dropout_rate)
 
     def forward(self, hidden_states):
@@ -683,8 +683,8 @@ class UdopLayerFF(nn.Module):
 
 
 # Copied from transformers.models.t5.modeling_t5.T5Attention with T5->Udop
-class UdopAttention(nn.Module):
-    def __init__(self, config: UdopConfig, has_relative_attention_bias=False):
+class MarkushgrapherAttention(nn.Module):
+    def __init__(self, config: MarkushgrapherConfig, has_relative_attention_bias=False):
         super().__init__()
         self.is_decoder = config.is_decoder
         self.has_relative_attention_bias = has_relative_attention_bias
@@ -919,11 +919,11 @@ class UdopAttention(nn.Module):
 
 
 # Copied from transformers.models.t5.modeling_t5.T5LayerSelfAttention with T5->Udop
-class UdopLayerSelfAttention(nn.Module):
+class MarkushGrapherLayerSelfAttention(nn.Module):
     def __init__(self, config, has_relative_attention_bias=False):
         super().__init__()
-        self.SelfAttention = UdopAttention(config, has_relative_attention_bias=has_relative_attention_bias)
-        self.layer_norm = UdopLayerNorm(config.d_model, eps=config.layer_norm_epsilon)
+        self.SelfAttention = MarkushGrapherAttention(config, has_relative_attention_bias=has_relative_attention_bias)
+        self.layer_norm = MarkushGrapherLayerNorm(config.d_model, eps=config.layer_norm_epsilon)
         self.dropout = nn.Dropout(config.dropout_rate)
 
     def forward(
@@ -952,11 +952,11 @@ class UdopLayerSelfAttention(nn.Module):
 
 
 # Copied from transformers.models.t5.modeling_t5.T5LayerCrossAttention with T5->Udop
-class UdopLayerCrossAttention(nn.Module):
+class MarkushGrapherLayerCrossAttention(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.EncDecAttention = UdopAttention(config, has_relative_attention_bias=False)
-        self.layer_norm = UdopLayerNorm(config.d_model, eps=config.layer_norm_epsilon)
+        self.EncDecAttention = MarkushGrapherAttention(config, has_relative_attention_bias=False)
+        self.layer_norm = MarkushGrapherLayerNorm(config.d_model, eps=config.layer_norm_epsilon)
         self.dropout = nn.Dropout(config.dropout_rate)
 
     def forward(
@@ -989,16 +989,16 @@ class UdopLayerCrossAttention(nn.Module):
 
 
 # Copied from transformers.models.t5.modeling_t5.T5Block with T5->Udop
-class UdopBlock(nn.Module):
+class MarkushGrapherBlock(nn.Module):
     def __init__(self, config, has_relative_attention_bias=False):
         super().__init__()
         self.is_decoder = config.is_decoder
         self.layer = nn.ModuleList()
-        self.layer.append(UdopLayerSelfAttention(config, has_relative_attention_bias=has_relative_attention_bias))
+        self.layer.append(MarkushGrapherLayerSelfAttention(config, has_relative_attention_bias=has_relative_attention_bias))
         if self.is_decoder:
-            self.layer.append(UdopLayerCrossAttention(config))
+            self.layer.append(MarkushGrapherLayerCrossAttention(config))
 
-        self.layer.append(UdopLayerFF(config))
+        self.layer.append(MarkushGrapherLayerFF(config))
 
     def forward(
         self,
@@ -1113,9 +1113,9 @@ class UdopBlock(nn.Module):
         return outputs  # hidden-states, present_key_value_states, (self-attention position bias), (self-attention weights), (cross-attention position bias), (cross-attention weights)
 
 
-class UdopCellEmbeddings(nn.Module):
+class MarkushGrapherCellEmbeddings(nn.Module):
     def __init__(self, max_2d_position_embeddings=501, hidden_size=1024, ccat=False):
-        super(UdopCellEmbeddings, self).__init__()
+        super(MarkushGrapherCellEmbeddings, self).__init__()
         self.ccat = ccat
         self.max_2d_position_embeddings = max_2d_position_embeddings
         if ccat:
@@ -1155,7 +1155,7 @@ class UdopCellEmbeddings(nn.Module):
 
 # get function for bucket computation
 # protected member access seems to be lesser evil than copy paste whole function
-get_relative_position_bucket = UdopAttention._relative_position_bucket
+get_relative_position_bucket = MarkushGrapherAttention._relative_position_bucket
 AUGMENTATION_RANGE = (0.80, 1.25)
 
 
@@ -1342,7 +1342,7 @@ BIAS_CLASSES = {
 }
 
 
-def create_relative_bias(config: UdopConfig) -> Sequence[RelativePositionBiasBase]:
+def create_relative_bias(config: MarkushGrapherConfig) -> Sequence[RelativePositionBiasBase]:
     """
     Creates empty list or one/multiple relative biases.
 
@@ -1364,7 +1364,7 @@ def create_relative_bias(config: UdopConfig) -> Sequence[RelativePositionBiasBas
     return bias_list
 
 
-class UdopStack(UdopPreTrainedModel):
+class MarkushGrapherStack(MarkushGrapherPreTrainedModel):
     """
     This class is based on `T5Stack`, but modified to take into account the image modality as well as 2D position
     embeddings.
@@ -1373,7 +1373,7 @@ class UdopStack(UdopPreTrainedModel):
     def __init__(self, config, embed_tokens=None, embed_patches=None):
         super().__init__(config)
 
-        print("UdopStack self.config.architecture_variant:", self.config.architecture_variant)
+        print("MarkushGrapherStack self.config.architecture_variant:", self.config.architecture_variant)
         self.embed_tokens = embed_tokens
         self.embed_patches = embed_patches
         self.is_decoder = config.is_decoder
@@ -1381,14 +1381,14 @@ class UdopStack(UdopPreTrainedModel):
         self.num_layers = config.num_layers
 
         self.block = nn.ModuleList(
-            [UdopBlock(config, has_relative_attention_bias=bool(i == 0)) for i in range(self.num_layers)]
+            [MarkushGrapherBlock(config, has_relative_attention_bias=bool(i == 0)) for i in range(self.num_layers)]
         )
-        self.final_layer_norm = UdopLayerNorm(config.d_model, eps=config.layer_norm_epsilon)
+        self.final_layer_norm = MarkushGrapherLayerNorm(config.d_model, eps=config.layer_norm_epsilon)
 
         self.dropout = nn.Dropout(config.dropout_rate)
 
         if not self.is_decoder:
-            self.cell2dembedding = UdopCellEmbeddings(config.max_2d_position_embeddings, config.hidden_size)
+            self.cell2dembedding = MarkushGrapherCellEmbeddings(config.max_2d_position_embeddings, config.hidden_size)
 
         # get weights from encoder position bias
         self.relative_bias = self._get_relative_bias(config)
@@ -1445,7 +1445,7 @@ class UdopStack(UdopPreTrainedModel):
             )
 
     @staticmethod
-    def _get_relative_bias(config: UdopConfig) -> RelativePositionBiasAggregated:
+    def _get_relative_bias(config: MarkushGrapherConfig) -> RelativePositionBiasAggregated:
         relative_bias_list = create_relative_bias(config)
         return RelativePositionBiasAggregated(relative_bias_list)
 
@@ -1770,7 +1770,7 @@ class UdopStack(UdopPreTrainedModel):
         )
 
 
-class MarkushGrapherModel(UdopPreTrainedModel):
+class MarkushGrapherModel(MarkushGrapherPreTrainedModel):
     _tied_weights_keys = [
         "encoder.embed_tokens.weight",
         "decoder.embed_tokens.weight",
@@ -1787,19 +1787,19 @@ class MarkushGrapherModel(UdopPreTrainedModel):
 
         # text and image embeddings
         self.shared = nn.Embedding(config.vocab_size, config.d_model)
-        self.patch_embed = UdopPatchEmbeddings(config)
+        self.patch_embed = MarkushGrapherPatchEmbeddings(config)
 
         encoder_config = deepcopy(config)
         encoder_config.is_decoder = False
         encoder_config.use_cache = False
         encoder_config.is_encoder_decoder = False
-        self.encoder = UdopStack(encoder_config, self.shared, self.patch_embed)
+        self.encoder = MarkushGrapherStack(encoder_config, self.shared, self.patch_embed)
 
         decoder_config = deepcopy(config)
         decoder_config.is_decoder = True
         decoder_config.is_encoder_decoder = False
         decoder_config.num_layers = config.num_decoder_layers
-        self.decoder = UdopStack(decoder_config, self.shared)
+        self.decoder = MarkushGrapherStack(decoder_config, self.shared)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -1818,7 +1818,7 @@ class MarkushGrapherModel(UdopPreTrainedModel):
     def get_decoder(self):
         return self.decoder
 
-    @add_start_docstrings_to_model_forward(UDOP_INPUTS_DOCSTRING)
+    @add_start_docstrings_to_model_forward(MARKUSHGRAPHER_INPUTS_DOCSTRING)
     @replace_return_docstrings(output_type=Seq2SeqModelOutput, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
@@ -1933,9 +1933,9 @@ class MarkushGrapherModel(UdopPreTrainedModel):
     images and an optional prompt.
 
     This class is based on [`T5ForConditionalGeneration`], extended to deal with images and layout (2D) data.""",
-    UDOP_START_DOCSTRING,
+    MARKUSHGRAPHER_START_DOCSTRING,
 )
-class UdopForConditionalGeneration(UdopPreTrainedModel):
+class MarkushGrapherForConditionalGeneration(MarkushGrapherPreTrainedModel):
     _tied_weights_keys = [
         "encoder.embed_tokens.weight",
         "decoder.embed_tokens.weight",
@@ -1957,23 +1957,23 @@ class UdopForConditionalGeneration(UdopPreTrainedModel):
         """
         Note: .from_pretrained() randomly initialize any parameter which is not in the provided states_dict.
         """
-        super(UdopForConditionalGeneration, self).__init__(config)
+        super(MarkushGrapherForConditionalGeneration, self).__init__(config)
 
         # text and image embeddings
         self.shared = nn.Embedding(config.vocab_size, config.d_model)
-        self.patch_embed = UdopPatchEmbeddings(config)
+        self.patch_embed = MarkushGrapherPatchEmbeddings(config)
 
         encoder_config = deepcopy(config)
         encoder_config.is_decoder = False
         encoder_config.use_cache = False
         encoder_config.is_encoder_decoder = False
-        self.encoder = UdopStack(encoder_config, self.shared, self.patch_embed)
+        self.encoder = MarkushGrapherStack(encoder_config, self.shared, self.patch_embed)
 
         decoder_config = deepcopy(config)
         decoder_config.is_decoder = True
         decoder_config.is_encoder_decoder = False
         decoder_config.num_layers = config.num_decoder_layers
-        self.decoder = UdopStack(decoder_config, self.shared)
+        self.decoder = MarkushGrapherStack(decoder_config, self.shared)
 
         # The weights of the language modeling head are shared with those of the encoder and decoder
         self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
@@ -2090,7 +2090,7 @@ class UdopForConditionalGeneration(UdopPreTrainedModel):
     def get_decoder(self):
         return self.decoder
 
-    @add_start_docstrings_to_model_forward(UDOP_INPUTS_DOCSTRING)
+    @add_start_docstrings_to_model_forward(MARKUSHGRAPHER_INPUTS_DOCSTRING)
     @replace_return_docstrings(output_type=Seq2SeqLMOutput, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
@@ -2128,13 +2128,13 @@ class UdopForConditionalGeneration(UdopPreTrainedModel):
         Examples:
 
         ```python
-        >>> from transformers import AutoProcessor, UdopForConditionalGeneration
+        >>> from transformers import AutoProcessor, MarkushGrapherForConditionalGeneration
         >>> from huggingface_hub import hf_hub_download
         >>> from PIL import Image
 
         >>> # load model and processor
         >>> processor = AutoProcessor.from_pretrained("nielsr/udop-large")
-        >>> model = UdopForConditionalGeneration.from_pretrained("nielsr/udop-large")
+        >>> model = MarkushGrapherForConditionalGeneration.from_pretrained("nielsr/udop-large")
 
         >>> # load image
         >>> filepath = hf_hub_download(
@@ -2531,9 +2531,9 @@ class UdopForConditionalGeneration(UdopPreTrainedModel):
 
 @add_start_docstrings(
     "The bare UDOP Model transformer outputting encoder's raw hidden-states without any specific head on top.",
-    UDOP_START_DOCSTRING,
+    MARKUSHGRAPHER_START_DOCSTRING,
 )
-class UdopEncoderModel(UdopPreTrainedModel):
+class MarkushGrapherEncoderModel(MarkushGrapherPreTrainedModel):
     _tied_weights_keys = [
         "encoder.embed_tokens.weight",
         "encoder.embed_patches.proj.weight",
@@ -2541,18 +2541,18 @@ class UdopEncoderModel(UdopPreTrainedModel):
         "encoder.relative_bias.biases.0.relative_attention_bias.weight",
     ]
 
-    def __init__(self, config: UdopConfig):
+    def __init__(self, config: MarkushGrapherConfig):
         super().__init__(config)
 
         # text and image embeddings
         self.shared = nn.Embedding(config.vocab_size, config.d_model)
-        self.patch_embed = UdopPatchEmbeddings(config)
+        self.patch_embed = MarkushGrapherPatchEmbeddings(config)
 
         encoder_config = deepcopy(config)
         encoder_config.is_decoder = False
         encoder_config.use_cache = False
         encoder_config.is_encoder_decoder = False
-        self.encoder = UdopStack(encoder_config, self.shared, self.patch_embed)
+        self.encoder = MarkushGrapherStack(encoder_config, self.shared, self.patch_embed)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -2575,7 +2575,7 @@ class UdopEncoderModel(UdopPreTrainedModel):
         for layer, heads in heads_to_prune.items():
             self.encoder.block[layer].layer[0].SelfAttention.prune_heads(heads)
 
-    @add_start_docstrings_to_model_forward(UDOP_ENCODER_INPUTS_DOCSTRING)
+    @add_start_docstrings_to_model_forward(MARKUSHGRAPHER_ENCODER_INPUTS_DOCSTRING)
     @replace_return_docstrings(output_type=BaseModelOutputWithAttentionMask, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
@@ -2596,10 +2596,10 @@ class UdopEncoderModel(UdopPreTrainedModel):
         Example:
 
         ```python
-        >>> from transformers import AutoTokenizer, UdopEncoderModel
+        >>> from transformers import AutoTokenizer, MarkushGrapherEncoderModel
 
         >>> tokenizer = AutoTokenizer.from_pretrained("nielsr/udop-large")
-        >>> model = UdopEncoderModel.from_pretrained("nielsr/udop-large")
+        >>> model = MarkushGrapherEncoderModel.from_pretrained("nielsr/udop-large")
         >>> input_ids = tokenizer(
         ...     "Studies have been shown that owning a dog is good for you", return_tensors="pt"
         ... ).input_ids  # Batch size 1

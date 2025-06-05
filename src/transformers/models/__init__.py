@@ -200,6 +200,7 @@ from . import (
     trocr,
     tvlt,
     udop,
+    markushgrapher,
     umt5,
     unispeech,
     unispeech_sat,

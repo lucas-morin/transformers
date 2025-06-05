@@ -782,6 +782,14 @@ src/transformers/models/markuplm/modeling_markuplm.py
 src/transformers/models/markuplm/processing_markuplm.py
 src/transformers/models/markuplm/tokenization_markuplm.py
 src/transformers/models/markuplm/tokenization_markuplm_fast.py
+src/transformers/models/markushgrapher/__init__.py
+src/transformers/models/markushgrapher/configuration_markushgrapher.py
+src/transformers/models/markushgrapher/convert_markush_to_pytorch.py
+src/transformers/models/markushgrapher/image_processing_markushgrapher.py
+src/transformers/models/markushgrapher/modeling_markushgrapher.py
+src/transformers/models/markushgrapher/processing_markushgrapher.py
+src/transformers/models/markushgrapher/tokenization_markushgrapher.py
+src/transformers/models/markushgrapher/tokenization_markushgrapher_fast.py
 src/transformers/models/mask2former/__init__.py
 src/transformers/models/mask2former/configuration_mask2former.py
 src/transformers/models/mask2former/convert_mask2former_original_pytorch_checkpoint_to_pytorch.py

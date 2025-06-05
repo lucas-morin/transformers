@@ -23,7 +23,7 @@ from huggingface_hub import hf_hub_download
 from PIL import Image
 from torchvision import transforms as T
 
-from transformers import UdopConfig, UdopForConditionalGeneration, UdopImageProcessor, UdopProcessor, UdopTokenizer
+from transformers import MarkushgrapherConfig, MarkushgrapherForConditionalGeneration, MarkushgrapherImageProcessor, MarkushgrapherProcessor, MarkushgrapherTokenizer
 
 
 def transform(image, image_size=224):
@@ -92,8 +92,8 @@ def convert_udop_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_h
     state_dict = torch.load(checkpoint_path, map_location="cpu")
 
     # create HF model
-    config = UdopConfig(decoder_start_token_id=0)
-    model = UdopForConditionalGeneration(config)
+    config = MarkushgrapherConfig(decoder_start_token_id=0)
+    model = MarkushgrapherForConditionalGeneration(config)
     model.eval()
 
     # load weights
@@ -104,9 +104,9 @@ def convert_udop_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_h
     assert unexpected_keys == ["pos_embed"]
 
     # prepare dummy inputs
-    tokenizer = UdopTokenizer.from_pretrained("t5-base", legacy=True)
-    image_processor = UdopImageProcessor()
-    processor = UdopProcessor(image_processor=image_processor, tokenizer=tokenizer)
+    tokenizer = MarkushgrapherTokenizer.from_pretrained("t5-base", legacy=True)
+    image_processor = MarkushgrapherImageProcessor()
+    processor = MarkushgrapherProcessor(image_processor=image_processor, tokenizer=tokenizer)
     # input_ids, bbox, image = prepare_dummy_inputs(tokenizer, image_processor)
     prompt = "Question answering. In which year is the report made?"
 

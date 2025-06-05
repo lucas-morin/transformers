@@ -354,6 +354,13 @@ else:
                 ),
             ),
             (
+                "markushgrapher",
+                (
+                    "MarkushGrapherTokenizer" if is_sentencepiece_available() else None,
+                    "MarkushGrapherTokenizerFast" if is_tokenizers_available() else None,
+                ),
+            ),
+            (
                 "umt5",
                 (
                     "T5Tokenizer" if is_sentencepiece_available() else None,
