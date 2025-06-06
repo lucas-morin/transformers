@@ -2032,7 +2032,7 @@ class MarkushgrapherForConditionalGeneration(MarkushgrapherPreTrainedModel):
 
         if (self.config.architecture_variant == "molscribe-encoder-5") or (
             self.config.architecture_variant == "molscribe-encoder-7"
-        ):  # TODO: Test deeper and thiner mlp
+        ):  
             self.molscribe_projector = nn.Sequential(
                 nn.Linear(1024, 1024), nn.ReLU(), nn.Dropout(0.1), nn.Linear(1024, 1024)
             )
