@@ -296,13 +296,11 @@ def combine_image_text_embeddings(
     Conclusion:
     The output sequence is following this schema:
         - Text:
-             - Prompt text tokens
-             - OCR text tokens summed with the visual patches representing them
-             - Padding (up to 512)
+             - OCR text tokens summed with the visual patches representing them.
          - Image:
-             - Remaining visual patches (that do not represent any OCR text token)
-             - Padding (up to 1024)
-    The output sequence length is 1536.
+             - Remaining visual patches (that do not represent any OCR text token).
+             - Padding (up to 1024).
+    The output sequence length depends on the sample (can be 1063 or 1109 for instance) .
     
     Warning: Bbox needs to be between 0 and 1.
     """
