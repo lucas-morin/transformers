@@ -302,7 +302,7 @@ def combine_image_text_embeddings(
          - Image:
              - Remaining visual patches (that do not represent any OCR text token)
              - Padding (up to 1024)
-    The output sequence length is 1561.
+    The output sequence length is 1536.
     
     Warning: Bbox needs to be between 0 and 1.
     """
