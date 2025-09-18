@@ -293,16 +293,18 @@ def combine_image_text_embeddings(
     """
     Combine the image and text embeddings for the input to the encoder/decoder of Markushgrapher.
 
-    First, the image embeddings are created by checking for each visual patch if it is inside the bounding box of a
-    token. If it is, the visual patch is combined with the token embedding. Then, the visual bounding boxes are combined
-    with the text bounding boxes. Finally, the visual bounding boxes are combined with the text attention mask.
-
     Conclusion:
-    For each text tokens, the image patch embedding containing the text is added.
-    Then, we append all patch embeddings which were not associated with any text.
-    Finally, we pad the sequence to have 1024 visual tokens. (The final size is len(ocr_boxes) + 1024.)
-
-    Warning: Bbox needs to be between 0 and 1
+    The output sequence is following this schema:
+        - Text:
+             - Prompt text tokens
+             - OCR text tokens summed with the visual patches representing them
+             - Padding (up to 512)
+         - Image:
+             - Remaining visual patches (that do not represent any OCR text token)
+             - Padding (up to 1024)
+    The output sequence length is 1561.
+    
+    Warning: Bbox needs to be between 0 and 1.
     """
     if verbose:
         print("image_size", image_size)  # 512
